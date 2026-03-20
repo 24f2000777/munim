@@ -23,7 +23,8 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types as genai_types
 
 from config import settings
 from services.analytics.metrics import format_inr, BusinessMetrics
@@ -39,12 +40,11 @@ MAX_RETRIES = 2
 # Setup
 # ---------------------------------------------------------------------------
 
-def _get_model():
-    """Lazy initialise Gemini model."""
+def _get_client():
+    """Lazy initialise Gemini client (google-genai SDK)."""
     if not settings.GOOGLE_API_KEY:
         raise RuntimeError("GOOGLE_API_KEY not configured")
-    genai.configure(api_key=settings.GOOGLE_API_KEY)
-    return genai.GenerativeModel("gemini-2.0-flash-exp")
+    return genai.Client(api_key=settings.GOOGLE_API_KEY)
 
 
 # ---------------------------------------------------------------------------
@@ -124,49 +124,62 @@ Write the WhatsApp report now. Follow all rules exactly.
 
 @dataclass
 class NarratorResult:
-    text: str
+    content: str          # The generated WhatsApp message text
     language: str
     word_count: int
     used_fallback: bool
     generation_time_ms: int
 
+    # Legacy alias so existing code using .text still works
+    @property
+    def text(self) -> str:
+        return self.content
+
 
 def generate_report(
     owner_name: str,
     language: str,
-    metrics: BusinessMetrics,
-    anomaly_report: AnomalyReport,
+    period_start: str,
+    period_end: str,
+    metrics_summary: dict,
+    top_anomalies: list,
+    seasonality_context: list,
+    # Optional: pass BusinessMetrics + AnomalyReport directly (from Celery pipeline)
+    metrics: "BusinessMetrics | None" = None,
+    anomaly_report: "AnomalyReport | None" = None,
 ) -> NarratorResult:
     """
     Generate a WhatsApp report using Gemini 2.0 Flash.
 
-    Args:
-        owner_name:    Business owner's first name.
-        language:      'hi' | 'en' | 'hinglish'
-        metrics:       Pre-computed BusinessMetrics.
-        anomaly_report: Pre-computed AnomalyReport.
+    Accepts either:
+      - Pre-serialized dicts (metrics_summary, top_anomalies) — used by the API router
+      - BusinessMetrics + AnomalyReport objects — used by the Celery pipeline
 
     Returns:
-        NarratorResult with the generated text.
+        NarratorResult with the generated WhatsApp message.
     """
     lang_instruction = LANGUAGE_INSTRUCTIONS.get(language, LANGUAGE_INSTRUCTIONS["hi"])
 
-    # Build compact summaries — never pass raw data to LLM
-    metrics_summary = _build_metrics_summary(metrics)
-    anomaly_summaries = _build_anomaly_summaries(anomaly_report)
-    seasonality_notes = []
-    for a in anomaly_report.anomalies[:3]:
-        seasonality_notes.extend(a.context_notes)
+    # If raw objects passed, build summaries from them
+    if metrics is not None:
+        metrics_summary = _build_metrics_summary(metrics)
+        period_start = str(metrics.period_start.date()) if metrics.period_start else period_start
+        period_end = str(metrics.period_end.date()) if metrics.period_end else period_end
+    if anomaly_report is not None:
+        top_anomalies = _build_anomaly_summaries(anomaly_report)
+        seasonality_context = []
+        for a in anomaly_report.anomalies[:3]:
+            seasonality_context.extend(a.context_notes)
 
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(language_instruction=lang_instruction)
     user_prompt = build_report_prompt(
         owner_name=owner_name,
         language=language,
-        period_start=str(metrics.period_start.date()) if metrics.period_start else "",
-        period_end=str(metrics.period_end.date()) if metrics.period_end else "",
+        period_start=period_start,
+        period_end=period_end,
         metrics_summary=metrics_summary,
-        top_anomalies=anomaly_summaries,
-        seasonality_context=seasonality_notes,
+        top_anomalies=top_anomalies,
+        seasonality_context=seasonality_context,
     )
 
     start_ms = int(time.time() * 1000)
@@ -191,7 +204,7 @@ def generate_report(
     )
 
     return NarratorResult(
-        text=text,
+        content=text,
         language=language,
         word_count=word_count,
         used_fallback=used_fallback,
@@ -217,15 +230,16 @@ def _call_gemini_with_fallback(
     """
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            model = _get_model()
-            response = model.generate_content(
-                [system_prompt, user_prompt],
-                generation_config=genai.types.GenerationConfig(
+            client = _get_client()
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=f"{system_prompt}\n\n{user_prompt}",
+                config=genai_types.GenerateContentConfig(
                     max_output_tokens=600,
                     temperature=0.4,    # Low temp = more factual, less creative
                     top_p=0.8,
+                    http_options=genai_types.HttpOptions(timeout=LLM_TIMEOUT_SECONDS * 1000),
                 ),
-                request_options={"timeout": LLM_TIMEOUT_SECONDS},
             )
 
             if response.text and len(response.text.strip()) > 50:

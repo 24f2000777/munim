@@ -1,6 +1,8 @@
 """Celery application configuration — Upstash Redis broker."""
 
 from celery import Celery
+from celery.schedules import crontab
+
 from config import settings
 
 celery_app = Celery(
@@ -29,26 +31,14 @@ celery_app.conf.update(
     },
 )
 
-# Beat schedule for weekly reports (Monday 8 AM IST)
+# Beat schedule for weekly reports (Monday 8 AM IST = 02:30 UTC)
 celery_app.conf.beat_schedule = {
     "send-weekly-reports": {
         "task": "tasks.send_reports.send_weekly_reports",
-        "schedule": _monday_8am_cron(),
+        "schedule": crontab(hour=2, minute=30, day_of_week=1),
     },
     "send-monthly-reports": {
         "task": "tasks.send_reports.send_monthly_reports",
-        "schedule": _first_of_month_cron(),
+        "schedule": crontab(hour=2, minute=30, day_of_month=1),
     },
 }
-
-
-def _monday_8am_cron():
-    """Monday 8:00 AM IST = Monday 02:30 UTC."""
-    from celery.schedules import crontab
-    return crontab(hour=2, minute=30, day_of_week=1)
-
-
-def _first_of_month_cron():
-    """1st of month, 8:00 AM IST = 02:30 UTC."""
-    from celery.schedules import crontab
-    return crontab(hour=2, minute=30, day_of_month=1)

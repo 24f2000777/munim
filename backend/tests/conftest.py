@@ -5,12 +5,22 @@ Provides synthetic Tally XML, Excel data, and DataFrames for testing.
 All test data is synthetic — no real business data is ever used in tests.
 """
 
+import os
 import textwrap
 from decimal import Decimal
 from io import BytesIO
 
 import pandas as pd
 import pytest
+
+# ---------------------------------------------------------------------------
+# Environment setup — must happen before importing any app modules
+# ---------------------------------------------------------------------------
+# Provide dummy values for required settings so tests don't need a real .env
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://test:test@localhost/test_munim")
+os.environ.setdefault("NEXTAUTH_SECRET", "test-secret-for-pytest-only")
+os.environ.setdefault("GOOGLE_API_KEY", "test-gemini-key")
+os.environ.setdefault("APP_ENV", "testing")
 
 
 # ---------------------------------------------------------------------------
