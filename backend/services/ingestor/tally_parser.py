@@ -147,7 +147,9 @@ def parse_tally_xml(
     skipped_non_sales = 0
 
     for voucher in vouchers:
-        vch_type = _get_text(voucher, "VCHTYPE") or ""
+        # VCHTYPE is an attribute in TallyPrime (<VOUCHER VCHTYPE="Sales">)
+        # but some ERP9 exports store it as a child element — check both.
+        vch_type = voucher.get("VCHTYPE") or _get_text(voucher, "VCHTYPE") or ""
         vch_type_lower = vch_type.strip().lower()
 
         if vch_type_lower not in vch_types:
@@ -400,8 +402,9 @@ def _parse_tally_date(raw: str, voucher_id: str = "") -> pd.Timestamp:
 
     if len(raw) == 8 and raw.isdigit():
         try:
-            return pd.Timestamp(raw, format=TALLY_DATE_FORMAT)
-        except ValueError:
+            # pd.Timestamp does not accept format= in pandas 2.x
+            return pd.Timestamp(pd.to_datetime(raw, format=TALLY_DATE_FORMAT))
+        except (ValueError, TypeError):
             pass
 
     # Attempt pandas inference as last resort

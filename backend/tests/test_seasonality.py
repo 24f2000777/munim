@@ -27,8 +27,8 @@ class TestSeasonalityEngine:
 
     def test_random_non_festival_date_not_in_season(self):
         """A random date far from any event returns in_season=False."""
-        ctx = get_seasonal_context(date(2025, 7, 15), date(2025, 7, 22))
-        # July 15 is not near any hardcoded event
+        # July 1–4: not near GST deadline (July 20) or any festival
+        ctx = get_seasonal_context(date(2025, 7, 1), date(2025, 7, 4))
         assert ctx.in_season is False
 
     def test_diwali_causes_downgrade_modifier(self):

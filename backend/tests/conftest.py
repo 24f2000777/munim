@@ -235,21 +235,22 @@ def clean_sales_df() -> pd.DataFrame:
                     "company": "Test Company",
                 })
 
-    # Week 8: "Tata Salt" stops selling (for dead stock test)
-    for day_offset in range(6):
-        tx_date = base_date + timedelta(weeks=7, days=day_offset)
-        for i, (product, customer) in enumerate(zip(products[:4], customers[:4])):
-            if product == "Tata Salt":
-                continue  # Skip Tata Salt in week 8
-            rows.append({
-                "date": pd.Timestamp(tx_date),
-                "customer": customer,
-                "product": product,
-                "amount": Decimal(str((i + 1) * 2000)),
-                "voucher_id": f"V8{day_offset}{i}",
-                "vch_type": "Sales",
-                "company": "Test Company",
-            })
+    # Weeks 8–10: "Tata Salt" stops selling (>14 days gap for dead stock test)
+    for week in range(7, 10):
+        for day_offset in range(6):
+            tx_date = base_date + timedelta(weeks=week, days=day_offset)
+            for i, (product, customer) in enumerate(zip(products[:4], customers[:4])):
+                if product == "Tata Salt":
+                    continue  # Skip Tata Salt — creates >14 day gap
+                rows.append({
+                    "date": pd.Timestamp(tx_date),
+                    "customer": customer,
+                    "product": product,
+                    "amount": Decimal(str((i + 1) * 2000)),
+                    "voucher_id": f"V{week}{day_offset}{i}",
+                    "vch_type": "Sales",
+                    "company": "Test Company",
+                })
 
     df = pd.DataFrame(rows)
     df["date"] = pd.to_datetime(df["date"])

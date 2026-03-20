@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from auth import AuthenticatedUser, get_current_user
 from config import settings
 from db.neon_client import get_db_session
 from models.upload import UploadResponse
@@ -61,6 +62,7 @@ async def upload_file(
     file: UploadFile = File(...),
     ca_client_id: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     """
     Upload a Tally XML, Excel, or CSV file for analysis.
@@ -73,8 +75,7 @@ async def upload_file(
 
     Returns immediately with upload_id — poll /upload/{id}/status for progress.
     """
-    # --- Auth (placeholder — will be replaced with actual JWT auth middleware) ---
-    user_id = _get_current_user_id(request)
+    user_id = current_user.user_id
 
     # --- Size validation ---
     raw_bytes = await file.read()
@@ -160,8 +161,8 @@ async def upload_file(
         # Try to clean up R2 object
         try:
             _get_r2_client().delete_object(Bucket=settings.R2_BUCKET_NAME, Key=r2_key)
-        except Exception:
-            pass
+        except Exception as cleanup_err:  # nosec B110
+            logger.warning("R2 cleanup failed for key %s: %s", r2_key, cleanup_err)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create upload record. Please try again.",
@@ -193,9 +194,10 @@ async def get_upload_status(
     upload_id: str,
     request: Request,
     db: AsyncSession = Depends(get_db_session),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     """Poll for upload processing status."""
-    user_id = _get_current_user_id(request)
+    user_id = current_user.user_id
 
     result = await db.execute(
         text("""
@@ -228,20 +230,6 @@ async def get_upload_status(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-def _get_current_user_id(request: Request) -> str:
-    """
-    Extract user ID from request state.
-    Set by auth middleware (auth.py) after JWT validation.
-    """
-    user_id = getattr(request.state, "user_id", None)
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required.",
-        )
-    return user_id
-
 
 def _get_content_type(file_type: str) -> str:
     return {

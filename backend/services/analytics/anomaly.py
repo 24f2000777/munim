@@ -151,6 +151,8 @@ def detect_anomalies(
 
 def _detect_slow_moving_stock(df: pd.DataFrame, today: pd.Timestamp) -> list[Anomaly]:
     """Rule: Product not sold in > 14 days → slow moving / dead stock."""
+    if df.empty or "product" not in df.columns:
+        return []
     anomalies = []
 
     last_sale = df.groupby("product")["date"].max()
@@ -195,6 +197,8 @@ def _detect_slow_moving_stock(df: pd.DataFrame, today: pd.Timestamp) -> list[Ano
 
 def _detect_customer_churn_risk(df: pd.DataFrame, today: pd.Timestamp) -> list[Anomaly]:
     """Rule: Customer with no order in > 21 days → churn risk."""
+    if df.empty or "customer" not in df.columns:
+        return []
     anomalies = []
 
     last_order = df.groupby("customer")["date"].max()
@@ -239,7 +243,7 @@ def _detect_customer_churn_risk(df: pd.DataFrame, today: pd.Timestamp) -> list[A
 
 def _detect_big_transactions(df: pd.DataFrame) -> list[Anomaly]:
     """Rule: Single transaction > 3× average order value → investigate."""
-    if df.empty:
+    if df.empty or "amount" not in df.columns:
         return []
 
     amounts = [float(x) for x in df["amount"] if isinstance(x, Decimal) and x > Decimal(0)]
@@ -280,6 +284,8 @@ def _detect_big_transactions(df: pd.DataFrame) -> list[Anomaly]:
 
 def _detect_revenue_drop(df: pd.DataFrame, today: pd.Timestamp) -> list[Anomaly]:
     """Rule: Week-over-week revenue drop > 20% → urgent alert."""
+    if df.empty or "date" not in df.columns or pd.isna(today):
+        return []
     week_start = today - pd.Timedelta(days=6)
     prev_start = week_start - pd.Timedelta(days=7)
     prev_end = week_start - pd.Timedelta(days=1)
@@ -488,3 +494,4 @@ def _validate_df(df: pd.DataFrame) -> None:
     missing = [c for c in required if c not in df.columns]
     if missing:
         raise ValueError(f"DataFrame missing required columns: {missing}")
+    # Empty DataFrame is valid for anomaly detection — returns 0 anomalies.

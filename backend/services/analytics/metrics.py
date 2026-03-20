@@ -336,12 +336,23 @@ def _validate_df(df: pd.DataFrame) -> None:
         raise ValueError("DataFrame is empty — no data to analyze.")
 
 
-def _sum_amount(df: pd.DataFrame) -> Decimal:
-    """Sum the amount column, handling Decimal objects safely."""
-    if df.empty:
-        return Decimal(0)
+def _sum_amount(df) -> Decimal:
+    """
+    Sum amount values from a DataFrame or a pandas Series.
+
+    When called from groupby(...)[col].apply(), pandas passes a Series.
+    When called directly, we pass the full DataFrame and access "amount".
+    Both cases are handled here.
+    """
+    if isinstance(df, pd.Series):
+        values = df
+    else:
+        if df.empty or "amount" not in df.columns:
+            return Decimal(0)
+        values = df["amount"]
+
     total = Decimal(0)
-    for val in df["amount"]:
+    for val in values:
         if isinstance(val, Decimal):
             total += val
     return total

@@ -104,7 +104,7 @@ def _detect_file_type(raw_bytes: bytes, filename: str) -> FileType:
         text = sample.decode("utf-8", errors="ignore")
         if text.count(",") > 3 or text.count("\t") > 3:
             return "csv"
-    except Exception:
+    except Exception:  # nosec B110 — decode heuristic, failure means unknown type
         pass
 
     return "unknown"

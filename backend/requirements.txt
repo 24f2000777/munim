@@ -6,7 +6,7 @@
 # --- Web Framework ---
 fastapi==0.115.6
 uvicorn[standard]==0.32.1
-python-multipart==0.0.18        # File upload support
+python-multipart==0.0.22        # File upload support (CVE-2026-24486 fixed in 0.0.22)
 
 # --- Data Validation ---
 pydantic==2.10.4
@@ -31,7 +31,7 @@ python-dateutil==2.9.0.post0    # Smart date parsing
 # --- Analytics & ML ---
 scikit-learn==1.6.1             # IsolationForest, preprocessing
 prophet==1.1.6                  # Time series forecasting (v2)
-lightgbm==4.5.0                 # Revenue forecasting (v2)
+lightgbm==4.6.0                 # Revenue forecasting (v2) (CVE-2024-43598 fixed in 4.6.0)
 
 # --- LLM (Google Gemini 2.0 Flash — Free tier) ---
 google-generativeai==0.8.3
@@ -48,7 +48,7 @@ redis==5.2.1                    # Upstash Redis client
 boto3==1.35.88
 
 # --- Auth ---
-python-jose[cryptography]==3.3.0  # JWT validation
+PyJWT[crypto]==2.10.1             # JWT validation (replaces python-jose; CVE-2024-33663/4)
 passlib[bcrypt]==1.7.4
 
 # --- Monitoring ---

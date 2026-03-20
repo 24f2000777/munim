@@ -53,7 +53,8 @@ class TestParseTallyXml:
     def test_date_parsing_yyyymmdd(self, minimal_tally_xml):
         """Tally YYYYMMDD dates parse to valid Timestamps."""
         result = parse_tally_xml(minimal_tally_xml)
-        assert result.df["date"].dtype == "datetime64[ns]"
+        # pandas 2.x uses datetime64[us]; older uses datetime64[ns] — check both
+        assert "datetime64" in str(result.df["date"].dtype)
         assert not result.df["date"].isna().any()
 
     def test_dates_sorted_ascending(self, minimal_tally_xml):

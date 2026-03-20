@@ -84,6 +84,12 @@ LANGUAGE_INSTRUCTIONS = {
 }
 
 
+def _sanitize_text(text: str, max_length: int = 100) -> str:
+    """Strip control characters that could escape prompt context."""
+    import re
+    return re.sub(r"[\x00-\x1f\x7f]", "", str(text))[:max_length].strip()
+
+
 def build_report_prompt(
     owner_name: str,
     language: str,
@@ -94,8 +100,9 @@ def build_report_prompt(
     seasonality_context: list[str],
 ) -> str:
     """Build the user-turn prompt with pre-computed analytics."""
+    safe_name = _sanitize_text(owner_name)
     return f"""\
-Owner name: {owner_name}
+Owner name: {safe_name}
 Report period: {period_start} to {period_end}
 
 BUSINESS METRICS THIS WEEK:

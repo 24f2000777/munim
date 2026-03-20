@@ -206,6 +206,9 @@ def process_upload_task(self: Task, upload_id: str) -> dict:
     except Exception as exc:
         logger.error("Processing failed for upload %s: %s", upload_id, exc, exc_info=True)
 
+        # Store a safe, generic message for user-facing API — full detail is in server logs only
+        safe_msg = _safe_error_message(exc)
+
         with engine.connect() as conn:
             conn.execute(
                 text("""
@@ -215,7 +218,7 @@ def process_upload_task(self: Task, upload_id: str) -> dict:
                         processed_at = NOW()
                     WHERE id = :id
                 """),
-                {"id": upload_id, "msg": str(exc)[:500]},
+                {"id": upload_id, "msg": safe_msg},
             )
             conn.commit()
 
@@ -224,6 +227,21 @@ def process_upload_task(self: Task, upload_id: str) -> dict:
             raise self.retry(exc=exc)
 
         raise
+
+
+def _safe_error_message(exc: Exception) -> str:
+    """
+    Return a user-safe error message. Only specific, expected errors get descriptive text.
+    All unexpected exceptions return a generic message so internal details are never exposed.
+    """
+    from services.ingestor.tally_parser import TallyParseError
+
+    if isinstance(exc, TallyParseError):
+        return "Could not parse the Tally XML file. Please check the file format and try again."
+    if isinstance(exc, ValueError) and len(str(exc)) < 200:
+        # ValueError messages are typically safe (our own validation messages)
+        return str(exc)
+    return "Processing failed. Our team has been notified. Please try again later."
 
 
 def _update_status(conn, upload_id: str, status: str) -> None:
