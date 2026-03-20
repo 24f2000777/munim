@@ -48,15 +48,3 @@ export function trendSymbol(pct: number | null): string {
   return "0%";
 }
 
-/** Greeting by time of day */
-export function getGreeting(name: string, lang: "hi" | "en" = "en"): string {
-  const hour = new Date().getHours();
-  if (lang === "hi") {
-    if (hour < 12) return `सुप्रभात, ${name} जी 🙏`;
-    if (hour < 17) return `नमस्ते, ${name} जी`;
-    return `शुभ संध्या, ${name} जी`;
-  }
-  if (hour < 12) return `Good morning, ${name}`;
-  if (hour < 17) return `Good afternoon, ${name}`;
-  return `Good evening, ${name}`;
-}

@@ -2,6 +2,7 @@
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useUploadFile, useUploadStatus } from "@/lib/api/upload";
 import { ACCEPTED_FILE_TYPES, MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -14,48 +15,46 @@ import { toast } from "sonner";
 type Stage = "idle" | "uploading" | "processing" | "done" | "error";
 
 const STEPS = [
-  { key: "uploading",   label: "File received",  icon: Upload       },
-  { key: "processing",  label: "AI analysing",   icon: Loader2      },
-  { key: "done",        label: "Report ready",   icon: CheckCircle2 },
+  { key: "uploading",  label: "File received", icon: Upload       },
+  { key: "processing", label: "AI analysing",  icon: Loader2      },
+  { key: "done",       label: "Report ready",  icon: CheckCircle2 },
 ];
 
 function Stepper({ stage }: { stage: Stage }) {
   const stageMap: Record<string, number> = { uploading: 0, processing: 1, done: 2 };
   const stepIndex = stageMap[stage] ?? -1;
   return (
-    <div className="flex items-center justify-center gap-2 my-6">
+    <div className="flex items-center justify-center gap-3 my-6">
       {STEPS.map((step, i) => {
         const done    = i < stepIndex;
         const current = i === stepIndex;
         return (
-          <div key={step.key} className="flex items-center gap-2">
-            <div className={cn(
-              "flex flex-col items-center gap-1",
-            )}>
+          <div key={step.key} className="flex items-center gap-3">
+            <div className="flex flex-col items-center gap-1.5">
               <div className={cn(
-                "w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300",
-                done    ? "bg-green-100"     : "",
-                current ? "bg-saffron/15"    : "",
+                "w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300",
+                done    ? "bg-green-100" : "",
+                current ? "bg-saffron/15" : "",
                 !done && !current ? "bg-muted" : "",
               )}>
                 <step.icon className={cn(
-                  "w-5 h-5",
-                  done    ? "text-green-600"  : "",
+                  "w-4 h-4",
+                  done    ? "text-green-600" : "",
                   current ? "text-saffron animate-pulse" : "",
                   !done && !current ? "text-muted-foreground" : "",
                 )} />
               </div>
               <span className={cn(
-                "text-[10px] font-medium text-center",
-                done    ? "text-green-600"    : "",
-                current ? "text-saffron"      : "text-muted-foreground",
+                "text-[10px] font-medium",
+                done    ? "text-green-600" : "",
+                current ? "text-saffron" : "text-muted-foreground",
               )}>
                 {step.label}
               </span>
             </div>
             {i < STEPS.length - 1 && (
               <div className={cn(
-                "w-12 h-0.5 mb-4 rounded-full transition-all duration-500",
+                "w-10 h-0.5 mb-4 rounded-full transition-all duration-500",
                 i < stepIndex ? "bg-green-400" : "bg-border",
               )} />
             )}
@@ -75,17 +74,13 @@ export default function UploadPage() {
 
   const uploadMutation = useUploadFile();
 
-  // Poll status only when processing
   const { data: statusData } = useUploadStatus(
     stage === "processing" || stage === "done" ? uploadId : null
   );
 
-  // React to status changes
   if (statusData?.status === "completed" && stage === "processing") {
     setStage("done");
-    setTimeout(() => {
-      router.push(`/analysis/${uploadId}`);
-    }, 1500);
+    setTimeout(() => router.push(`/analysis/${uploadId}`), 1500);
   }
   if (statusData?.status === "failed" && stage !== "error") {
     setStage("error");
@@ -96,16 +91,13 @@ export default function UploadPage() {
     async (acceptedFiles: File[]) => {
       const file = acceptedFiles[0];
       if (!file) return;
-
       if (file.size > MAX_FILE_SIZE_BYTES) {
-        toast.error("File too large! Max 50 MB allowed.");
+        toast.error("File too large. Max 50 MB allowed.");
         return;
       }
-
       setFileName(file.name);
       setStage("uploading");
       setError("");
-
       try {
         const result = await uploadMutation.mutateAsync(file);
         setUploadId(result.upload_id);
@@ -113,7 +105,7 @@ export default function UploadPage() {
       } catch (err: any) {
         setStage("error");
         setError(err.message ?? "Upload failed");
-        toast.error("Upload failed — " + (err.message ?? "try again"));
+        toast.error("Upload failed: " + (err.message ?? "please try again"));
       }
     },
     [uploadMutation]
@@ -126,137 +118,138 @@ export default function UploadPage() {
     disabled: stage !== "idle" && stage !== "error",
   });
 
-  const reset = () => {
-    setStage("idle");
-    setUploadId(null);
-    setFileName("");
-    setError("");
-  };
-
   return (
     <div className="max-w-2xl mx-auto animate-fade-in">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-forest">Upload karo</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Tally XML, Excel ya CSV file — Munim baaki kaam karta hai
+      <div className="mb-6">
+        <h1 className="text-xl font-bold text-forest">Upload</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Tally XML, Excel or CSV — Munim handles the analysis automatically
         </p>
       </div>
 
-      <div className="bg-card border border-border rounded-2xl shadow-metric p-6 md:p-8">
-        {/* Idle / error — show dropzone */}
-        {(stage === "idle" || stage === "error") && (
-          <>
-            <div
-              {...getRootProps()}
-              className={cn(
-                "border-2 border-dashed rounded-2xl p-10 md:p-14 text-center transition-all duration-200 cursor-pointer",
-                isDragActive
-                  ? "border-saffron bg-saffron/5 scale-[1.01]"
-                  : "border-border hover:border-saffron/50 hover:bg-muted/30",
-              )}
-            >
-              <input {...getInputProps()} />
-              <div className={cn(
-                "w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 transition-all",
-                isDragActive ? "bg-saffron text-white scale-110" : "bg-muted",
-              )}>
-                <Upload className={cn("w-7 h-7", isDragActive ? "text-white" : "text-muted-foreground")} />
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
+        {/* Drop zone card */}
+        <div className="md:col-span-3 bg-card border border-border rounded-2xl shadow-metric p-5">
+          {(stage === "idle" || stage === "error") && (
+            <>
+              <div
+                {...getRootProps()}
+                className={cn(
+                  "border-2 border-dashed rounded-xl p-10 text-center transition-all duration-200 cursor-pointer",
+                  isDragActive
+                    ? "border-saffron bg-saffron/5"
+                    : "border-border hover:border-saffron/50 hover:bg-muted/20",
+                )}
+              >
+                <input {...getInputProps()} />
+                <div className={cn(
+                  "w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 transition-all",
+                  isDragActive ? "bg-saffron text-white" : "bg-muted",
+                )}>
+                  <Upload className={cn("w-6 h-6", isDragActive ? "text-white" : "text-muted-foreground")} />
+                </div>
+
+                {isDragActive ? (
+                  <p className="text-saffron font-semibold text-sm">Release to upload</p>
+                ) : (
+                  <>
+                    <p className="font-semibold text-forest text-sm mb-1">
+                      Drag and drop your file here
+                    </p>
+                    <p className="text-xs text-muted-foreground">or click to browse</p>
+                  </>
+                )}
               </div>
 
-              {isDragActive ? (
-                <p className="text-saffron font-semibold text-base">
-                  Chod do yahan! ✨
-                </p>
-              ) : (
-                <>
-                  <p className="font-semibold text-forest text-base mb-1">
-                    File drag karo ya click karo
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Tally XML, Excel (.xlsx, .xls), CSV
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">Max 50 MB</p>
-                </>
+              <div className="flex items-center justify-center gap-5 mt-4">
+                {[
+                  { icon: FileText, label: "Tally XML", color: "text-saffron"      },
+                  { icon: File,     label: "Excel",     color: "text-forest"       },
+                  { icon: File,     label: "CSV",       color: "text-golden-dark"  },
+                ].map((fmt) => (
+                  <div key={fmt.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <fmt.icon className={`w-3.5 h-3.5 ${fmt.color}`} />
+                    {fmt.label}
+                  </div>
+                ))}
+              </div>
+
+              {error && (
+                <div className="mt-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-red-700">{error}</p>
+                </div>
+              )}
+            </>
+          )}
+
+          {(stage === "uploading" || stage === "processing" || stage === "done") && (
+            <div className="text-center py-4">
+              <div className="w-12 h-12 rounded-xl bg-saffron/10 flex items-center justify-center mx-auto mb-3">
+                <FileText className="w-6 h-6 text-saffron" />
+              </div>
+              <p className="font-semibold text-forest text-sm mb-0.5">{fileName}</p>
+              <p className="text-xs text-muted-foreground">
+                {stage === "uploading"  && "Uploading..."}
+                {stage === "processing" && "AI is analysing your data..."}
+                {stage === "done"       && "Analysis complete. Redirecting..."}
+              </p>
+              <Stepper stage={stage} />
+              {stage === "processing" && (
+                <p className="text-xs text-muted-foreground">This takes 10 to 30 seconds</p>
+              )}
+              {stage === "done" && (
+                <div className="flex items-center justify-center gap-2 text-green-600 font-semibold text-xs mt-2">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Analysis ready
+                </div>
               )}
             </div>
+          )}
+        </div>
 
-            {/* Supported formats */}
-            <div className="flex items-center justify-center gap-4 mt-5">
+        {/* Instructions side card */}
+        <div className="md:col-span-2 space-y-4">
+          <div className="bg-forest/5 border border-forest/10 rounded-2xl p-4">
+            <h3 className="font-semibold text-forest text-sm mb-3">Export from Tally</h3>
+            <ol className="space-y-2.5">
               {[
-                { icon: FileText, label: "Tally XML", color: "text-saffron" },
-                { icon: File,     label: "Excel",     color: "text-forest"  },
-                { icon: File,     label: "CSV",       color: "text-golden-dark" },
-              ].map((fmt) => (
-                <div key={fmt.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <fmt.icon className={`w-3.5 h-3.5 ${fmt.color}`} />
-                  {fmt.label}
+                "Open TallyPrime and go to Gateway of Tally",
+                "Display > Reports > Statement of Accounts",
+                "Export > select XML format",
+                "Save and upload here",
+              ].map((step, i) => (
+                <li key={i} className="flex gap-2.5 text-xs text-muted-foreground">
+                  <span className="font-bold text-forest flex-shrink-0">{i + 1}.</span>
+                  {step}
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          <div className="bg-card border border-border rounded-2xl p-4">
+            <h3 className="font-semibold text-forest text-sm mb-2">File limits</h3>
+            <div className="space-y-1.5">
+              {[
+                ["Max size", "50 MB"],
+                ["Formats", "XML, XLSX, XLS, CSV"],
+                ["Processing time", "10 to 30 seconds"],
+              ].map(([label, val]) => (
+                <div key={label} className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="font-semibold text-forest">{val}</span>
                 </div>
               ))}
             </div>
-
-            {error && (
-              <div className="mt-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-3">
-                <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-semibold text-red-700">Error</p>
-                  <p className="text-xs text-red-600">{error}</p>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Processing states */}
-        {(stage === "uploading" || stage === "processing" || stage === "done") && (
-          <div className="text-center py-4">
-            <div className="w-14 h-14 rounded-2xl bg-saffron/10 flex items-center justify-center mx-auto mb-4">
-              <FileText className="w-7 h-7 text-saffron" />
-            </div>
-            <p className="font-semibold text-forest text-base mb-1">{fileName}</p>
-            <p className="text-xs text-muted-foreground mb-2">
-              {stage === "uploading"  && "Uploading..."}
-              {stage === "processing" && "AI analyse kar raha hai..."}
-              {stage === "done"       && "Analysis ready! Redirect ho rahe ho..."}
-            </p>
-
-            <Stepper stage={stage} />
-
-            {stage === "processing" && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Isme 10–30 seconds lag sakte hain ⏳
-              </p>
-            )}
-
-            {stage === "done" && (
-              <div className="flex items-center justify-center gap-2 text-green-600 font-semibold text-sm mt-2">
-                <CheckCircle2 className="w-4 h-4" />
-                Analysis complete! Moving to results...
-              </div>
-            )}
           </div>
-        )}
-      </div>
 
-      {/* Recent uploads link */}
-      <div className="mt-4 text-center">
-        <a
-          href="/dashboard"
-          className="text-sm text-muted-foreground hover:text-forest transition-colors inline-flex items-center gap-1"
-        >
-          Dashboard dekho <ArrowRight className="w-3 h-3" />
-        </a>
-      </div>
-
-      {/* Instructions */}
-      <div className="mt-6 bg-forest/5 border border-forest/10 rounded-2xl p-5">
-        <h3 className="font-semibold text-forest text-sm mb-3">Kaise export karein Tally se?</h3>
-        <ol className="space-y-2 text-sm text-muted-foreground">
-          <li className="flex gap-2"><span className="font-bold text-forest">1.</span> TallyPrime mein Gateway of Tally kholein</li>
-          <li className="flex gap-2"><span className="font-bold text-forest">2.</span> Display → Reports → Statement of Accounts</li>
-          <li className="flex gap-2"><span className="font-bold text-forest">3.</span> Export → XML format select karein</li>
-          <li className="flex gap-2"><span className="font-bold text-forest">4.</span> Save karein aur yahan upload karein</li>
-        </ol>
+          <Link
+            href="/dashboard"
+            className="flex items-center justify-between w-full text-xs text-muted-foreground hover:text-forest transition-colors p-2"
+          >
+            Back to dashboard <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
       </div>
     </div>
   );

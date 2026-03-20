@@ -78,7 +78,7 @@ export function Sidebar({ userType = "smb_owner" }: SidebarProps) {
           </div>
         ) : (
           <p className="text-[11px] text-cream/40 font-medium">
-            आपका digital मुनीम 🙏
+            Your digital Munim
           </p>
         )}
       </div>

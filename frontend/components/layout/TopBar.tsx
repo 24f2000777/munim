@@ -2,7 +2,6 @@
 import { useSession, signOut } from "next-auth/react";
 import { Bell, LogOut, Settings, Menu } from "lucide-react";
 import Link from "next/link";
-import { getGreeting } from "@/lib/utils";
 
 interface TopBarProps {
   onMenuToggle?: () => void;
@@ -23,10 +22,10 @@ function Avatar({ name, image }: { name: string; image?: string | null }) {
 
 export function TopBar({ onMenuToggle }: TopBarProps) {
   const { data: session } = useSession();
-  const name   = session?.user?.name?.split(" ")[0] ?? "Vyapari";
+  const name   = session?.user?.name?.split(" ")[0] ?? "there";
   const image  = session?.user?.image;
-  const lang   = ((session?.user as any)?.language_preference ?? "en") as "hi" | "en";
-  const greeting = getGreeting(name, lang);
+  const hour   = new Date().getHours();
+  const greeting = `${hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"}, ${name}`;
 
   return (
     <header className="h-14 flex items-center px-4 md:px-6 border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-30">

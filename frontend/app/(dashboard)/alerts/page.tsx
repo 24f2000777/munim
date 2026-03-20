@@ -17,9 +17,9 @@ export default function AlertsPage() {
         <ChevronLeft className="w-4 h-4" /> Dashboard
       </Link>
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-2xl font-bold text-forest">Alerts</h1>
+          <h1 className="text-xl font-bold text-forest">Alerts</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Anomalies from your latest analysis</p>
         </div>
         {anomalies && (
@@ -36,10 +36,10 @@ export default function AlertsPage() {
           {Array(3).fill(0).map((_, i) => <div key={i} className="skeleton h-24 rounded-2xl" />)}
         </div>
       ) : !anomalies?.anomalies?.length ? (
-        <div className="text-center py-24 bg-card border border-border rounded-2xl">
-          <CheckCircle2 className="w-14 h-14 text-green-500 mx-auto mb-4" />
-          <p className="text-xl font-bold text-forest">Sab theek hai! 🎉</p>
-          <p className="text-sm text-muted-foreground mt-2">No anomalies detected in your latest upload</p>
+        <div className="text-center py-20 bg-card border border-border rounded-2xl">
+          <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
+          <p className="text-base font-bold text-forest">All clear</p>
+          <p className="text-sm text-muted-foreground mt-1">No anomalies detected in your latest upload</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -48,28 +48,28 @@ export default function AlertsPage() {
               key={i}
               className={cn(
                 "bg-card border rounded-2xl p-5 shadow-metric",
-                a.severity === "HIGH"   ? "border-l-4 border-l-red-500 border-red-100"   : "",
+                a.severity === "HIGH"   ? "border-l-4 border-l-red-500 border-red-100"    : "",
                 a.severity === "MEDIUM" ? "border-l-4 border-l-amber-500 border-amber-100" : "",
-                a.severity === "LOW"    ? "border-l-4 border-l-blue-400 border-blue-100"  : "",
+                a.severity === "LOW"    ? "border-l-4 border-l-blue-400 border-blue-100"   : "",
               )}
             >
               <div className="flex items-start gap-3">
                 <AlertTriangle className={cn(
-                  "w-5 h-5 mt-0.5 flex-shrink-0",
+                  "w-4 h-4 mt-0.5 flex-shrink-0",
                   a.severity === "HIGH"   ? "text-red-500"   : "",
                   a.severity === "MEDIUM" ? "text-amber-500" : "",
                   a.severity === "LOW"    ? "text-blue-500"  : "",
                 )} />
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                    <span className="font-bold text-forest">{a.title}</span>
+                    <span className="font-bold text-forest text-sm">{a.title}</span>
                     <span className={BADGE[a.severity]}>{a.severity}</span>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed">{a.explanation}</p>
                   {a.action && (
-                    <div className="mt-3 bg-saffron/5 border border-saffron/15 rounded-xl px-4 py-2.5">
-                      <p className="text-xs font-semibold text-saffron">Recommended action:</p>
-                      <p className="text-sm text-forest mt-0.5">{a.action}</p>
+                    <div className="mt-3 bg-saffron/5 border border-saffron/15 rounded-xl px-3 py-2.5">
+                      <p className="text-xs font-semibold text-saffron mb-0.5">Recommended action</p>
+                      <p className="text-sm text-forest">{a.action}</p>
                     </div>
                   )}
                 </div>

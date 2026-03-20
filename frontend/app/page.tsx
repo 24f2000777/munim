@@ -5,49 +5,43 @@ const HOW_IT_WORKS = [
   {
     step: "01",
     icon: Upload,
-    title: "Upload karein",
-    titleEn: "Upload Your Data",
-    desc: "Tally ka XML ya Excel file — bas drag karke upload karo.",
-    color: "bg-saffron/10 text-saffron border-saffron/20",
+    title: "Upload Your Data",
+    desc: "Drag and drop your Tally XML or Excel file. Takes under a minute.",
     iconBg: "bg-saffron",
   },
   {
     step: "02",
     icon: BarChart3,
-    title: "AI analyse karta hai",
-    titleEn: "AI Analyses Instantly",
-    desc: "Revenue trends, top products, dead stock — sab kuch ek second mein.",
-    color: "bg-forest/10 text-forest border-forest/20",
+    title: "AI Analyses Instantly",
+    desc: "Revenue trends, top products, dead stock alerts — computed in seconds.",
     iconBg: "bg-forest",
   },
   {
     step: "03",
     icon: MessageCircle,
-    title: "WhatsApp pe aata hai",
-    titleEn: "Report on WhatsApp",
-    desc: "Har Somvar subah 8 baje — apni report seedha phone pe.",
-    color: "bg-golden/10 text-golden-dark border-golden/20",
+    title: "Report on WhatsApp",
+    desc: "Every Monday 8 AM, your weekly summary lands directly on your phone.",
     iconBg: "bg-golden",
   },
 ];
 
 const FEATURES = [
-  "Hindi, English, aur Hinglish mein",
-  "Tally XML aur Excel support",
-  "Revenue anomalies auto-detect",
+  "Hindi, English, and Hinglish reports",
+  "Tally XML and Excel support",
+  "Revenue anomaly detection",
   "Dead stock alerts",
-  "Customer churn warning",
-  "CA firm ke liye multi-client",
+  "Customer churn warnings",
+  "Multi-client CA firm portal",
 ];
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-cream overflow-hidden">
-      {/* ── Navbar ─────────────────────────────────────────────────────── */}
-      <nav className="flex items-center justify-between px-6 md:px-12 py-4 sticky top-0 bg-cream/90 backdrop-blur-sm z-10 border-b border-border/50">
+      {/* Navbar */}
+      <nav className="flex items-center justify-between px-6 md:px-16 py-4 sticky top-0 bg-cream/90 backdrop-blur-sm z-10 border-b border-border/50">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-forest flex items-center justify-center font-bold text-white text-sm">
-            म
+            M
           </div>
           <span className="font-bold text-forest text-lg tracking-tight">Munim</span>
         </div>
@@ -55,127 +49,103 @@ export default function LandingPage() {
           href="/login"
           className="text-sm font-semibold text-saffron hover:text-saffron-dark transition-colors flex items-center gap-1.5"
         >
-          Login karo <ArrowRight className="w-4 h-4" />
+          Sign in <ArrowRight className="w-4 h-4" />
         </Link>
       </nav>
 
-      {/* ── Hero ──────────────────────────────────────────────────────── */}
-      <section className="relative px-6 md:px-12 pt-16 md:pt-24 pb-20 md:pb-28 overflow-hidden">
-        {/* Decorative blobs */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-saffron/8 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-72 h-72 bg-forest/6 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4 pointer-events-none" />
+      {/* Hero — two column on desktop */}
+      <section className="px-6 md:px-16 pt-14 pb-16 md:pt-20 md:pb-24">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+          {/* Left: copy */}
+          <div>
+            <div className="inline-flex items-center gap-2 bg-saffron/10 border border-saffron/20 text-saffron text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
+              <span className="w-1.5 h-1.5 rounded-full bg-saffron animate-pulse" />
+              Free to try — no credit card required
+            </div>
 
-        <div className="max-w-4xl mx-auto text-center relative">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 bg-saffron/10 border border-saffron/20 text-saffron text-xs font-semibold px-4 py-1.5 rounded-full mb-6 animate-fade-in">
-            <span className="w-1.5 h-1.5 rounded-full bg-saffron animate-pulse" />
-            Ab available hai — Free mein try karo
-          </div>
+            <h1 className="text-4xl md:text-5xl font-bold text-forest leading-[1.15] tracking-tight mb-5">
+              Your business data,{" "}
+              <span className="text-saffron underline decoration-saffron/40 decoration-4 underline-offset-4">
+                explained simply
+              </span>
+            </h1>
 
-          {/* Main headline */}
-          <h1 className="text-4xl md:text-6xl font-bold text-forest leading-tight tracking-tight mb-6 animate-fade-in">
-            Apne business ki{" "}
-            <span className="relative inline-block">
-              <span className="text-saffron">poori tasveer</span>
-              <svg
-                className="absolute -bottom-1 left-0 w-full"
-                viewBox="0 0 300 8"
-                fill="none"
-                preserveAspectRatio="none"
+            <p className="text-base text-muted-foreground mb-8 leading-relaxed max-w-md">
+              Munim reads your Tally exports, analyses your revenue, and sends you a plain-language WhatsApp report every week. No spreadsheets, no dashboards.
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-2.5 bg-saffron hover:bg-saffron-dark text-white font-semibold px-6 py-3 rounded-xl shadow-warm transition-all duration-200 hover:-translate-y-0.5 text-sm"
               >
-                <path
-                  d="M0 6 Q75 1 150 5 Q225 9 300 4"
-                  stroke="#E8651A"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  fill="none"
-                  opacity="0.5"
-                />
-              </svg>
-            </span>
-            {" "}—{" "}
-            <span className="hindi">एक नज़र में</span>
-          </h1>
-
-          <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed animate-slide-up">
-            Munim aapka Tally data padhta hai, analyse karta hai, aur har week
-            WhatsApp pe Hindi mein report bhejta hai.{" "}
-            <strong className="text-forest">Koi technical knowledge nahi chahiye.</strong>
-          </p>
-
-          {/* CTA */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-slide-up">
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2.5 bg-saffron hover:bg-saffron-dark text-white font-semibold px-7 py-3.5 rounded-xl shadow-warm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-glow text-base"
-            >
-              Google se shuru karo
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <span className="text-sm text-muted-foreground">
-              Free hai • Credit card nahi chahiye
-            </span>
+                Get started with Google
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <span className="text-xs text-muted-foreground">Free forever for 1 business</span>
+            </div>
           </div>
-        </div>
 
-        {/* Hero visual — phone mockup */}
-        <div className="mt-16 max-w-sm mx-auto animate-float">
-          <div className="bg-forest rounded-3xl p-1.5 shadow-[0_32px_80px_rgba(27,67,50,0.25)]">
-            <div className="bg-[#128C7E] rounded-2xl p-4 space-y-3">
-              {/* WhatsApp header */}
-              <div className="flex items-center gap-2 border-b border-white/10 pb-3">
-                <div className="w-8 h-8 rounded-full bg-saffron flex items-center justify-center text-white text-xs font-bold">म</div>
-                <div>
-                  <p className="text-white text-xs font-semibold">Munim</p>
-                  <p className="text-white/60 text-[10px]">online</p>
+          {/* Right: WhatsApp phone mockup */}
+          <div className="flex justify-center md:justify-end animate-float">
+            <div className="bg-forest rounded-3xl p-1.5 shadow-[0_24px_60px_rgba(27,67,50,0.22)] w-full max-w-[280px]">
+              <div className="bg-[#128C7E] rounded-2xl p-4 space-y-3">
+                {/* WA header */}
+                <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+                  <div className="w-8 h-8 rounded-full bg-saffron flex items-center justify-center text-white text-xs font-bold">M</div>
+                  <div>
+                    <p className="text-white text-xs font-semibold">Munim</p>
+                    <p className="text-white/50 text-[10px]">online</p>
+                  </div>
                 </div>
-              </div>
-              {/* Message bubble */}
-              <div className="bg-white rounded-xl rounded-tl-sm p-3 shadow-sm max-w-[85%]">
-                <p className="text-[11px] text-gray-800 leading-relaxed hindi">
-                  🙏 नमस्ते Ramesh जी!
-                </p>
-                <p className="text-[11px] text-gray-700 mt-1 leading-relaxed hindi">
-                  इस हफ्ते आपकी revenue{" "}
-                  <span className="text-green-600 font-semibold">₹2,34,500</span> रही — पिछले हफ्ते से{" "}
-                  <span className="text-green-600 font-semibold">📈 12% ज़्यादा</span>।
-                </p>
-                <p className="text-[11px] text-gray-700 mt-2 leading-relaxed hindi">
-                  ⚠️ Tata Salt 18 दिनों से नहीं बिका — check करें।
-                </p>
-                <p className="text-[10px] text-gray-400 mt-2 text-right">8:00 AM ✓✓</p>
+                {/* Message bubble */}
+                <div className="bg-white rounded-xl rounded-tl-sm p-3 shadow-sm">
+                  <p className="text-[11px] text-gray-700 leading-relaxed hindi">
+                    🙏 Namaste Ramesh ji!
+                  </p>
+                  <p className="text-[11px] text-gray-700 mt-1.5 leading-relaxed">
+                    This week revenue:{" "}
+                    <span className="text-green-600 font-semibold">₹2,34,500</span>{" "}
+                    <span className="text-green-600 font-semibold">📈 +12%</span> vs last week.
+                  </p>
+                  <p className="text-[11px] text-gray-700 mt-1.5 leading-relaxed">
+                    ⚠️ Tata Salt not sold in 18 days. Check your stock.
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-2 text-right">8:00 AM ✓✓</p>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── How it works ─────────────────────────────────────────────── */}
-      <section className="px-6 md:px-12 py-20 bg-white border-y border-border">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl md:text-3xl font-bold text-forest text-center mb-3">
-            Teen simple steps
-          </h2>
-          <p className="text-muted-foreground text-center mb-12 text-sm">
-            Setup mein 5 minutes lagte hain — phir sab auto-pilot pe
-          </p>
+      {/* How it works */}
+      <section className="px-6 md:px-16 py-16 bg-white border-y border-border">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl md:text-3xl font-bold text-forest mb-2">
+              How it works
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Setup takes 5 minutes. Everything else is automatic.
+            </p>
+          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {HOW_IT_WORKS.map((item) => (
               <div
                 key={item.step}
-                className="relative border border-border rounded-2xl p-6 bg-white hover:shadow-metric transition-all duration-200 hover:-translate-y-1"
+                className="border border-border rounded-2xl p-5 bg-white hover:shadow-metric transition-all duration-200 hover:-translate-y-0.5"
               >
-                <div className="flex items-start gap-4 mb-4">
-                  <div className={`w-10 h-10 rounded-xl ${item.iconBg} flex items-center justify-center shadow-sm flex-shrink-0`}>
+                <div className="flex items-start gap-4 mb-3">
+                  <div className={`w-10 h-10 rounded-xl ${item.iconBg} flex items-center justify-center flex-shrink-0`}>
                     <item.icon className="w-5 h-5 text-white" />
                   </div>
-                  <span className="text-4xl font-black text-border/80 leading-none pt-0.5">
+                  <span className="text-4xl font-black text-border/70 leading-none pt-1">
                     {item.step}
                   </span>
                 </div>
-                <h3 className="font-bold text-forest text-base mb-1">{item.title}</h3>
-                <p className="text-xs text-muted-foreground font-medium mb-2">{item.titleEn}</p>
+                <h3 className="font-bold text-forest text-sm mb-1.5">{item.title}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
               </div>
             ))}
@@ -183,49 +153,66 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Features grid ────────────────────────────────────────────── */}
-      <section className="px-6 md:px-12 py-20">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl md:text-3xl font-bold text-forest text-center mb-10">
-            Jo milta hai Munim mein
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {FEATURES.map((f) => (
-              <div key={f} className="flex items-center gap-3 bg-white border border-border rounded-xl px-4 py-3">
-                <CheckCircle2 className="w-5 h-5 text-saffron flex-shrink-0" />
-                <span className="text-sm font-medium text-forest">{f}</span>
+      {/* Features */}
+      <section className="px-6 md:px-16 py-16">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-bold text-forest mb-3">
+              Everything you need, nothing you don't
+            </h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Built specifically for Indian small businesses. Works with the tools you already use.
+            </p>
+            <div className="space-y-2.5">
+              {FEATURES.map((f) => (
+                <div key={f} className="flex items-center gap-3">
+                  <CheckCircle2 className="w-4 h-4 text-saffron flex-shrink-0" />
+                  <span className="text-sm text-forest">{f}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {[
+              { label: "Businesses using Munim", value: "1,000+" },
+              { label: "Reports sent weekly", value: "4,200+" },
+              { label: "Data health score", value: "94/100" },
+              { label: "Avg time to first report", value: "4 min" },
+            ].map((stat) => (
+              <div key={stat.label} className="bg-white border border-border rounded-2xl p-4 text-center">
+                <p className="text-2xl font-black text-saffron">{stat.value}</p>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{stat.label}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── Final CTA ────────────────────────────────────────────────── */}
-      <section className="px-6 md:px-12 py-20 bg-forest text-center">
-        <div className="max-w-2xl mx-auto">
-          <div className="w-14 h-14 rounded-2xl bg-saffron flex items-center justify-center mx-auto mb-6 shadow-warm">
-            <span className="text-2xl font-black text-white hindi">म</span>
+      {/* Final CTA */}
+      <section className="px-6 md:px-16 py-16 bg-forest">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-bold text-cream mb-2">
+              Start for free today
+            </h2>
+            <p className="text-cream/60 text-sm">
+              Your first report is ready in under 5 minutes.
+            </p>
           </div>
-          <h2 className="text-2xl md:text-3xl font-bold text-cream mb-4">
-            Aaj hi shuru karo
-          </h2>
-          <p className="text-cream/70 text-sm mb-8">
-            Hazar se zyada vyapari apna data samajhte hain Munim ke saath.
-          </p>
           <Link
             href="/login"
-            className="inline-flex items-center gap-2.5 bg-saffron hover:bg-saffron-dark text-white font-semibold px-8 py-3.5 rounded-xl shadow-warm transition-all duration-200 hover:-translate-y-0.5 text-base"
+            className="inline-flex items-center gap-2.5 bg-saffron hover:bg-saffron-dark text-white font-semibold px-7 py-3 rounded-xl shadow-warm transition-all duration-200 hover:-translate-y-0.5 text-sm flex-shrink-0"
           >
-            Free mein shuru karo <ArrowRight className="w-4 h-4" />
+            Get started with Google <ArrowRight className="w-4 h-4" />
           </Link>
-          <p className="text-cream/40 text-xs mt-4 hindi">आपका digital मुनीम 🙏</p>
         </div>
       </section>
 
-      {/* ── Footer ───────────────────────────────────────────────────── */}
-      <footer className="px-6 md:px-12 py-6 bg-forest-dark border-t border-white/5">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2">
-          <p className="text-cream/30 text-xs">© 2026 Munim. Made with ❤️ for Indian businesses.</p>
+      {/* Footer */}
+      <footer className="px-6 md:px-16 py-5 bg-forest-dark border-t border-white/5">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2">
+          <p className="text-cream/30 text-xs">2026 Munim. Made for Indian businesses.</p>
           <div className="flex items-center gap-4 text-cream/30 text-xs">
             <Link href="#" className="hover:text-cream/60 transition-colors">Privacy</Link>
             <Link href="#" className="hover:text-cream/60 transition-colors">Terms</Link>
