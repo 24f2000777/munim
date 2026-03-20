@@ -1,0 +1,71 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+ENV/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+
+# === Node / Next.js ===
+node_modules/
+.next/
+out/
+.vercel/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.tsbuildinfo
+next-env.d.ts
+
+# === Environment files (NEVER commit these) ===
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# === Data (NEVER commit real business data) ===
+data/samples/*.xml
+data/samples/*.xlsx
+data/samples/*.xls
+data/samples/*.csv
+!data/samples/.gitkeep
+!data/samples/synthetic_*.xml
+!data/samples/synthetic_*.xlsx
+
+# === Celery ===
+celerybeat-schedule
+celerybeat.pid
+
+# === Redis dump ===
+dump.rdb
+
+# === Uploads (handled by Cloudflare R2 in prod) ===
+uploads/
+tmp/
