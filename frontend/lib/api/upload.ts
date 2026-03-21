@@ -25,7 +25,7 @@ export function useUploadStatus(uploadId: string | null) {
     enabled:        !!uploadId,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      if (status === "completed" || status === "failed") return false;
+      if (status === "done" || status === "error") return false;
       return UPLOAD_POLL_INTERVAL_MS;
     },
   });

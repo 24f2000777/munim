@@ -9,7 +9,7 @@ Output: ParsedFileResult (unified format regardless of source file type)
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from io import BytesIO
 from typing import Literal
@@ -17,7 +17,13 @@ from typing import Literal
 import pandas as pd
 
 from services.ingestor.tally_parser import parse_tally_xml, TallyParseResult, TallyParseError
-from services.ingestor.excel_parser import parse_excel, parse_csv, ExcelParseResult, ExcelParseError
+from services.ingestor.excel_parser import (
+    parse_excel, parse_csv, ExcelParseResult, ExcelParseError,
+    peek_raw_sample, peek_raw_sample_csv,
+)
+from services.ingestor.gemini_schema_detector import (
+    detect_schema_with_gemini, gemini_result_to_column_map,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +41,7 @@ class ParsedFileResult:
     date_range: tuple[pd.Timestamp, pd.Timestamp] | None
     warnings: list[str]
     raw_metadata: dict  # Format-specific metadata
+    business_type: str = "business"
 
 
 def detect_and_parse(
@@ -136,14 +143,36 @@ def _handle_tally(raw_bytes: bytes, filename: str) -> ParsedFileResult:
             "skipped_zero_value": result.skipped_zero_value,
             "skipped_non_sales": result.skipped_non_sales,
         },
+        business_type="business",
     )
 
 
 def _handle_excel(raw_bytes: bytes, filename: str) -> ParsedFileResult:
+    # Try Gemini schema detection first
+    headers, sample = peek_raw_sample(raw_bytes)
+    gemini = None
+    business_type = "business"
+    column_map_override = None
+
+    if headers and sample:
+        gemini = detect_schema_with_gemini(headers, sample, filename)
+        if gemini:
+            business_type = gemini.business_type
+            column_map_override = gemini_result_to_column_map(gemini)
+
     try:
-        result: ExcelParseResult = parse_excel(raw_bytes)
+        result: ExcelParseResult = parse_excel(raw_bytes, column_map_override=column_map_override)
     except ExcelParseError as exc:
-        raise ValueError(f"Failed to parse Excel file ({filename}): {exc}") from exc
+        # If Gemini-guided parse fails, retry without override
+        if column_map_override:
+            logger.warning("Gemini-guided parse failed, retrying rule-based: %s", exc)
+            try:
+                result = parse_excel(raw_bytes)
+                business_type = "business"
+            except ExcelParseError as exc2:
+                raise ValueError(f"Failed to parse Excel file ({filename}): {exc2}") from exc2
+        else:
+            raise ValueError(f"Failed to parse Excel file ({filename}): {exc}") from exc
 
     df = result.df
     date_range = _get_date_range(df)
@@ -151,7 +180,7 @@ def _handle_excel(raw_bytes: bytes, filename: str) -> ParsedFileResult:
     return ParsedFileResult(
         df=df,
         file_type="excel",
-        company_name="Unknown Company",  # Excel files don't embed company name
+        company_name="Unknown Company",
         detected_columns=result.detected_columns,
         total_rows=len(df),
         date_range=date_range,
@@ -159,15 +188,36 @@ def _handle_excel(raw_bytes: bytes, filename: str) -> ParsedFileResult:
         raw_metadata={
             "sheets_processed": result.sheets_processed,
             "rows_dropped": result.rows_dropped,
+            "gemini_confidence": gemini.confidence if gemini else 0.0,
         },
+        business_type=business_type,
     )
 
 
 def _handle_csv(raw_bytes: bytes, filename: str) -> ParsedFileResult:
+    headers, sample = peek_raw_sample_csv(raw_bytes)
+    gemini = None
+    business_type = "business"
+    column_map_override = None
+
+    if headers and sample:
+        gemini = detect_schema_with_gemini(headers, sample, filename)
+        if gemini:
+            business_type = gemini.business_type
+            column_map_override = gemini_result_to_column_map(gemini)
+
     try:
-        result: ExcelParseResult = parse_csv(raw_bytes)
+        result: ExcelParseResult = parse_csv(raw_bytes, column_map_override=column_map_override)
     except ExcelParseError as exc:
-        raise ValueError(f"Failed to parse CSV file ({filename}): {exc}") from exc
+        if column_map_override:
+            logger.warning("Gemini-guided CSV parse failed, retrying rule-based: %s", exc)
+            try:
+                result = parse_csv(raw_bytes)
+                business_type = "business"
+            except ExcelParseError as exc2:
+                raise ValueError(f"Failed to parse CSV file ({filename}): {exc2}") from exc2
+        else:
+            raise ValueError(f"Failed to parse CSV file ({filename}): {exc}") from exc
 
     df = result.df
     date_range = _get_date_range(df)
@@ -180,7 +230,11 @@ def _handle_csv(raw_bytes: bytes, filename: str) -> ParsedFileResult:
         total_rows=len(df),
         date_range=date_range,
         warnings=result.warnings,
-        raw_metadata={"rows_dropped": result.rows_dropped},
+        raw_metadata={
+            "rows_dropped": result.rows_dropped,
+            "gemini_confidence": gemini.confidence if gemini else 0.0,
+        },
+        business_type=business_type,
     )
 
 

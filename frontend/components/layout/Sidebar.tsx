@@ -1,86 +1,96 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
 import {
-  LayoutDashboard, Upload, FileText, Bell, Settings,
-  BarChart3, Users, BookOpen,
+  LayoutDashboard, Upload, FileText, Bell,
+  Settings, Users, LogOut, TrendingUp, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type NavItem = {
-  href:    string;
-  label:   string;
-  labelHi: string;
-  icon:    React.ElementType;
-  caOnly?: boolean;
-};
-
-const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", labelHi: "डैशबोर्ड", icon: LayoutDashboard },
-  { href: "/upload",    label: "Upload",    labelHi: "अपलोड",     icon: Upload           },
-  { href: "/reports",   label: "Reports",   labelHi: "रिपोर्ट",   icon: FileText         },
-  { href: "/alerts",    label: "Alerts",    labelHi: "अलर्ट",     icon: Bell             },
-  { href: "/settings",  label: "Settings",  labelHi: "सेटिंग",    icon: Settings         },
-  { href: "/ca",        label: "CA Portal", labelHi: "CA पोर्टल", icon: BarChart3, caOnly: true },
-  { href: "/clients",   label: "Clients",   labelHi: "क्लाइंट",   icon: Users,    caOnly: true },
+const NAV = [
+  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/upload",    icon: Upload,           label: "Upload"    },
+  { href: "/reports",   icon: FileText,          label: "Reports"   },
+  { href: "/alerts",    icon: Bell,              label: "Alerts", dot: true },
+  { href: "/settings",  icon: Settings,          label: "Settings"  },
 ];
 
-interface SidebarProps {
-  userType?: string;
-}
+const CA_NAV = [
+  { href: "/ca",         icon: TrendingUp, label: "CA Dashboard" },
+  { href: "/ca/clients", icon: Users,      label: "Clients"      },
+];
 
-export function Sidebar({ userType = "smb_owner" }: SidebarProps) {
+export function Sidebar() {
   const pathname = usePathname();
-  const isCA     = userType === "ca_firm";
-  const items    = NAV_ITEMS.filter((i) => !i.caOnly || isCA);
+  const { data: session } = useSession();
+  const userType  = (session?.user as any)?.userType;
+  const firstName = session?.user?.name?.split(" ")[0] ?? "User";
+  const avatar    = session?.user?.image;
+  const navItems  = userType === "ca_firm" ? [...NAV, ...CA_NAV] : NAV;
 
   return (
-    <aside className="flex flex-col h-full w-64 bg-forest text-cream">
-      {/* Brand */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
-        <div className="w-9 h-9 rounded-xl bg-saffron flex items-center justify-center font-bold text-white text-base shadow-warm">
-          म
+    <aside className="hidden md:flex flex-col w-[240px] min-h-screen bg-[#0A0A0C] border-r border-white/[0.06] flex-shrink-0">
+      {/* Logo */}
+      <div className="flex items-center gap-3 px-5 h-16 border-b border-white/[0.06]">
+        <div className="w-8 h-8 bg-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/30">
+          <span className="text-white text-sm font-bold">म</span>
         </div>
         <div>
-          <p className="text-base font-bold text-cream tracking-tight leading-none">Munim</p>
-          <p className="text-[10px] text-cream/50 font-medium mt-0.5 hindi">मुनीम</p>
+          <span className="text-white font-bold text-lg tracking-tight">Munim</span>
+          <span className="block text-[10px] text-white/30 -mt-0.5 font-medium">AI Business Intelligence</span>
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {items.map((item) => {
-          const active =
-            pathname === item.href ||
-            (item.href !== "/" && pathname.startsWith(item.href));
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto scrollbar-thin">
+        <p className="section-title px-3 mb-3">Menu</p>
+        {navItems.map((item) => {
+          const active = pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                "nav-link",
-                active ? "nav-link-active" : "nav-link-default"
+                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group",
+                active
+                  ? "bg-orange-500/15 text-orange-400 border border-orange-500/20"
+                  : "text-white/40 hover:text-white/80 hover:bg-white/5"
               )}
             >
-              <item.icon className="w-[18px] h-[18px] flex-shrink-0" />
-              <span className="truncate">{item.label}</span>
+              <item.icon className={cn("w-[18px] h-[18px] flex-shrink-0", active ? "text-orange-400" : "")} />
+              <span className="flex-1">{item.label}</span>
+              {(item as any).dot && !active && (
+                <span className="w-2 h-2 rounded-full bg-orange-500" />
+              )}
+              {active && <ChevronRight className="w-3.5 h-3.5 opacity-60" />}
             </Link>
           );
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="px-4 pb-5 pt-3 border-t border-white/10">
-        {isCA ? (
-          <div className="flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-golden" />
-            <span className="text-xs font-semibold text-golden">CA Firm Account</span>
+      {/* User */}
+      <div className="px-3 py-4 border-t border-white/[0.06] space-y-1">
+        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl">
+          {avatar ? (
+            <img src={avatar} className="w-8 h-8 rounded-xl object-cover ring-1 ring-white/10" alt={firstName} />
+          ) : (
+            <div className="w-8 h-8 rounded-xl bg-orange-500 flex items-center justify-center text-white text-sm font-bold">
+              {firstName[0]}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-white/90 text-sm font-semibold truncate">{firstName}</p>
+            <p className="text-white/30 text-xs truncate">{session?.user?.email}</p>
           </div>
-        ) : (
-          <p className="text-[11px] text-cream/40 font-medium">
-            Your digital Munim
-          </p>
-        )}
+        </div>
+        <button
+          onClick={() => signOut({ callbackUrl: "/" })}
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-white/30 hover:text-white/70 hover:bg-white/5 text-sm font-medium transition-all"
+        >
+          <LogOut className="w-[18px] h-[18px] flex-shrink-0" />
+          Sign out
+        </button>
       </div>
     </aside>
   );

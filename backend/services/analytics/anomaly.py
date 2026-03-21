@@ -38,11 +38,24 @@ logger = logging.getLogger(__name__)
 SLOW_MOVING_DAYS = 14           # Product not sold > 14 days → alert
 CHURN_RISK_DAYS = 21            # Customer silent > 21 days → alert
 BIG_ORDER_MULTIPLIER = 3        # Single tx > 3× avg → investigate
-REVENUE_DROP_THRESHOLD = 20     # WoW drop > 20% → urgent
+REVENUE_DROP_THRESHOLD = 20     # Period-over-period drop > 20% → urgent
 MIN_WEEKS_FOR_ML = 4            # IsolationForest needs ≥ 4 data points
 ISOLATION_CONTAMINATION = 0.1   # Expected anomaly rate
 ZSCORE_THRESHOLD = 2.5          # Z-score threshold for weekly revenue
 MIN_CONFIDENCE = 0.5            # Don't surface anomalies below this confidence
+
+
+def _detect_period_days(df: pd.DataFrame) -> int:
+    """Auto-detect comparison window — mirrors the same logic in metrics.py."""
+    if df.empty or "date" not in df.columns:
+        return 7
+    span_days = (df["date"].max() - df["date"].min()).days
+    if span_days <= 14:
+        return 7
+    elif span_days <= 90:
+        return 30
+    else:
+        return 90
 
 
 # ---------------------------------------------------------------------------
@@ -283,14 +296,16 @@ def _detect_big_transactions(df: pd.DataFrame) -> list[Anomaly]:
 
 
 def _detect_revenue_drop(df: pd.DataFrame, today: pd.Timestamp) -> list[Anomaly]:
-    """Rule: Week-over-week revenue drop > 20% → urgent alert."""
+    """Rule: Period-over-period revenue drop > 20% → urgent alert."""
     if df.empty or "date" not in df.columns or pd.isna(today):
         return []
-    week_start = today - pd.Timedelta(days=6)
-    prev_start = week_start - pd.Timedelta(days=7)
-    prev_end = week_start - pd.Timedelta(days=1)
 
-    current = df[df["date"].between(week_start, today)]
+    period_days = _detect_period_days(df)
+    period_start = today - pd.Timedelta(days=period_days - 1)
+    prev_start = period_start - pd.Timedelta(days=period_days)
+    prev_end = period_start - pd.Timedelta(days=1)
+
+    current = df[df["date"].between(period_start, today)]
     previous = df[df["date"].between(prev_start, prev_end)]
 
     current_rev = sum(float(x) for x in current["amount"] if isinstance(x, Decimal))
@@ -304,25 +319,29 @@ def _detect_revenue_drop(df: pd.DataFrame, today: pd.Timestamp) -> list[Anomaly]
     if drop_pct < REVENUE_DROP_THRESHOLD:
         return []
 
+    period_label = "this week" if period_days <= 7 else ("this month" if period_days <= 30 else "this quarter")
+    prev_label = "last week" if period_days <= 7 else ("last month" if period_days <= 30 else "last quarter")
+
     return [Anomaly(
         anomaly_type="revenue_drop",
         severity="HIGH",
         confidence=0.9,
-        title=f"Revenue dropped {drop_pct:.0f}% this week",
+        title=f"Revenue dropped {drop_pct:.0f}% {period_label}",
         explanation=(
-            f"Revenue this week is ₹{current_rev:,.0f}, down {drop_pct:.0f}% "
-            f"from ₹{prev_rev:,.0f} last week. "
+            f"Revenue {period_label} is ₹{current_rev:,.0f}, down {drop_pct:.0f}% "
+            f"from ₹{prev_rev:,.0f} {prev_label}. "
             f"This is a significant drop that needs immediate attention."
         ),
         action=(
-            "Review which products or customers drove last week's revenue and "
-            "check if those sales are missing this week. "
+            f"Review which products or customers drove {prev_label}'s revenue and "
+            f"check if those sales are missing {period_label}. "
             "Check for pending orders that haven't been invoiced yet."
         ),
         metadata={
             "current_revenue": current_rev,
             "previous_revenue": prev_rev,
             "drop_pct": drop_pct,
+            "period_days": period_days,
         },
     )]
 

@@ -53,6 +53,11 @@ def _build_engine() -> AsyncEngine:
     elif db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
 
+    # Strip query params that asyncpg doesn't accept (ssl handled via connect_args)
+    if "?" in db_url:
+        base, _ = db_url.split("?", 1)
+        db_url = base
+
     return create_async_engine(
         db_url,
         pool_size=5,
@@ -61,7 +66,7 @@ def _build_engine() -> AsyncEngine:
         pool_recycle=300,           # Recycle connections every 5 min (Neon idle timeout)
         echo=settings.APP_ENV == "development",  # Log SQL in dev only
         connect_args={
-            "ssl": "require",
+            "ssl": True,
             "prepared_statement_cache_size": 0,  # Required for Neon serverless
             "statement_cache_size": 0,
         },

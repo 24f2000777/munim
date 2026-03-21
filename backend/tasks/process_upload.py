@@ -17,6 +17,7 @@ Typical processing time: 15–90 seconds for large Tally files.
 import json
 import logging
 from decimal import Decimal
+from pathlib import Path
 
 import boto3
 from botocore.config import Config
@@ -25,6 +26,7 @@ from sqlalchemy import create_engine, text
 
 from config import settings
 from services.ingestor.schema_detector import detect_and_parse
+from services.analytics.ai_insights import generate_insights
 from services.cleaner.deduplicator import deduplicate_products
 from services.cleaner.normaliser import normalise
 from services.cleaner.health_scorer import compute_health_score, MINIMUM_SCORE_FOR_ANALYSIS
@@ -36,6 +38,9 @@ from tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
+# Local uploads directory — mirrors what upload.py uses
+LOCAL_UPLOADS_DIR = Path(__file__).parent.parent / "uploads"
+
 # Sync engine for Celery workers (asyncpg not compatible with sync Celery)
 _sync_engine = None
 
@@ -43,10 +48,13 @@ _sync_engine = None
 def _get_sync_engine():
     global _sync_engine
     if _sync_engine is None:
-        sync_url = settings.DATABASE_URL.replace(
-            "postgresql+asyncpg://", "postgresql+psycopg2://"
-        ).replace("postgresql://", "postgresql+psycopg2://")
-        from sqlalchemy import create_engine
+        # Strip asyncpg driver and query params for psycopg2
+        sync_url = settings.DATABASE_URL
+        sync_url = sync_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+        sync_url = sync_url.replace("postgresql://", "postgresql+psycopg2://")
+        if "?" in sync_url:
+            sync_url = sync_url.split("?")[0]
+
         _sync_engine = create_engine(
             sync_url,
             pool_pre_ping=True,
@@ -55,8 +63,19 @@ def _get_sync_engine():
     return _sync_engine
 
 
-def _get_r2_client():
-    return boto3.client(
+def _get_file_bytes(file_path: str) -> bytes:
+    """
+    Retrieve file bytes — checks local disk first, then falls back to R2.
+    This allows the same pipeline to work in dev (local) and prod (R2).
+    """
+    local_path = LOCAL_UPLOADS_DIR / file_path
+    if local_path.exists():
+        logger.info("Reading file from local disk: %s", local_path)
+        return local_path.read_bytes()
+
+    # Fall back to Cloudflare R2
+    logger.info("Reading file from R2: %s", file_path)
+    r2 = boto3.client(
         "s3",
         endpoint_url=f"https://{settings.R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
         aws_access_key_id=settings.R2_ACCESS_KEY_ID,
@@ -64,23 +83,14 @@ def _get_r2_client():
         config=Config(signature_version="s3v4"),
         region_name="auto",
     )
+    response = r2.get_object(Bucket=settings.R2_BUCKET_NAME, Key=file_path)
+    return response["Body"].read()
 
 
-@celery_app.task(
-    bind=True,
-    max_retries=3,
-    default_retry_delay=30,  # Wait 30s before retry
-    name="tasks.process_upload.process_upload_task",
-)
-def process_upload_task(self: Task, upload_id: str) -> dict:
+def run_pipeline(upload_id: str) -> dict:
     """
-    Process an uploaded file through the full analytics pipeline.
-
-    Args:
-        upload_id: UUID of the upload record in the DB.
-
-    Returns:
-        Dict with processing result summary.
+    Core processing pipeline — runs the full analytics stack for an upload.
+    Called by the Celery task OR directly as a FastAPI background task.
     """
     logger.info("Starting processing for upload: %s", upload_id)
     engine = _get_sync_engine()
@@ -100,15 +110,13 @@ def process_upload_task(self: Task, upload_id: str) -> dict:
         if not upload:
             raise ValueError(f"Upload {upload_id} not found in database")
 
-        # --- 2. Download from R2 ---
-        logger.info("Downloading file from R2: %s", upload.file_path)
-        r2 = _get_r2_client()
-        r2_response = r2.get_object(Bucket=settings.R2_BUCKET_NAME, Key=upload.file_path)
-        raw_bytes = r2_response["Body"].read()
+        # --- 2. Get file bytes (local or R2) ---
+        raw_bytes = _get_file_bytes(upload.file_path)
 
         # --- 3. Parse ---
         logger.info("Parsing file: %s (%d bytes)", upload.file_name, len(raw_bytes))
         parsed = detect_and_parse(raw_bytes, upload.file_name)
+        business_type = getattr(parsed, 'business_type', 'business')
 
         # --- 4. Deduplicate product names ---
         df, canonical_map = deduplicate_products(parsed.df)
@@ -121,7 +129,6 @@ def process_upload_task(self: Task, upload_id: str) -> dict:
         # --- 6. Compute health score ---
         health = compute_health_score(df)
 
-        # Store health report
         health_report_json = {
             "score": health.score,
             "grade": health.grade,
@@ -154,15 +161,15 @@ def process_upload_task(self: Task, upload_id: str) -> dict:
 
         if not health.can_analyze:
             logger.warning(
-                "Upload %s has health score %d — below minimum %d, skipping analysis",
+                "Upload %s health score %d below minimum %d — skipping analysis",
                 upload_id, health.score, MINIMUM_SCORE_FOR_ANALYSIS,
             )
-            _update_status(conn, upload_id, "done")
+            with engine.connect() as conn:
+                _update_status(conn, upload_id, "done")
             return {"status": "done", "score": health.score, "analyzed": False}
 
         # --- 7. Analytics ---
         logger.info("Running analytics for upload: %s", upload_id)
-
         metrics = compute_metrics(df)
         anomaly_report = detect_anomalies(df)
         customer_segments = compute_rfm(df)
@@ -171,7 +178,29 @@ def process_upload_task(self: Task, upload_id: str) -> dict:
             metrics.period_end or df["date"].max(),
         )
 
-        # --- 8. Serialize and store results ---
+        # --- 7b. Generate AI insights ---
+        ai_insights = []
+        try:
+            m = _serialize_metrics(metrics)
+            ai_insights = generate_insights(
+                business_type=business_type,
+                period_start=str(metrics.period_start.date()) if metrics.period_start else "",
+                period_end=str(metrics.period_end.date()) if metrics.period_end else "",
+                period_label=metrics.revenue.period_label,
+                current_revenue=float(m["current_revenue"]),
+                previous_revenue=float(m["previous_revenue"]),
+                change_pct=float(m["change_pct"]) if m["change_pct"] is not None else None,
+                top_products=m["top_products"],
+                dead_stock=m["dead_stock"],
+                anomalies=_serialize_anomalies(anomaly_report)["anomalies"],
+                total_customers=len(customer_segments),
+            )
+        except Exception as exc:
+            logger.warning("AI insights generation failed (non-critical): %s", exc)
+
+        revenue_trend = _compute_revenue_trend(df)
+
+        # --- 8. Store results ---
         analysis_id = _store_analysis_results(
             engine=engine,
             upload_id=upload_id,
@@ -180,6 +209,9 @@ def process_upload_task(self: Task, upload_id: str) -> dict:
             anomaly_report=anomaly_report,
             customer_segments=customer_segments,
             seasonal_ctx=seasonal_ctx,
+            business_type=business_type,
+            ai_insights=ai_insights,
+            revenue_trend=revenue_trend,
         )
 
         # --- 9. Mark done ---
@@ -194,7 +226,6 @@ def process_upload_task(self: Task, upload_id: str) -> dict:
             "Processing complete for upload: %s | health: %d | analysis_id: %s",
             upload_id, health.score, analysis_id,
         )
-
         return {
             "status": "done",
             "upload_id": upload_id,
@@ -205,27 +236,38 @@ def process_upload_task(self: Task, upload_id: str) -> dict:
 
     except Exception as exc:
         logger.error("Processing failed for upload %s: %s", upload_id, exc, exc_info=True)
-
-        # Store a safe, generic message for user-facing API — full detail is in server logs only
         safe_msg = _safe_error_message(exc)
+        try:
+            with engine.connect() as conn:
+                conn.execute(
+                    text("""
+                        UPDATE uploads SET
+                            status = 'error',
+                            error_message = :msg,
+                            processed_at = NOW()
+                        WHERE id = :id
+                    """),
+                    {"id": upload_id, "msg": safe_msg},
+                )
+                conn.commit()
+        except Exception as db_err:
+            logger.error("Failed to update error status: %s", db_err)
+        raise
 
-        with engine.connect() as conn:
-            conn.execute(
-                text("""
-                    UPDATE uploads SET
-                        status = 'error',
-                        error_message = :msg,
-                        processed_at = NOW()
-                    WHERE id = :id
-                """),
-                {"id": upload_id, "msg": safe_msg},
-            )
-            conn.commit()
 
-        # Retry on transient errors
+@celery_app.task(
+    bind=True,
+    max_retries=3,
+    default_retry_delay=30,
+    name="tasks.process_upload.process_upload_task",
+)
+def process_upload_task(self: Task, upload_id: str) -> dict:
+    """Celery wrapper around run_pipeline with retry logic."""
+    try:
+        return run_pipeline(upload_id)
+    except Exception as exc:
         if self.request.retries < self.max_retries:
             raise self.retry(exc=exc)
-
         raise
 
 
@@ -252,8 +294,25 @@ def _update_status(conn, upload_id: str, status: str) -> None:
     conn.commit()
 
 
+def _compute_revenue_trend(df) -> list[dict]:
+    """Daily revenue aggregation for the trend chart."""
+    from decimal import Decimal
+    sales_df = df[df["amount"].apply(lambda x: isinstance(x, Decimal) and x > Decimal(0))].copy()
+    if sales_df.empty:
+        return []
+    daily = (
+        sales_df.groupby(sales_df["date"].dt.date)["amount"]
+        .apply(lambda s: float(sum(x for x in s if isinstance(x, Decimal))))
+        .reset_index()
+    )
+    daily.columns = ["date", "revenue"]
+    daily["date"] = daily["date"].astype(str)
+    return daily.to_dict(orient="records")
+
+
 def _store_analysis_results(
-    engine, upload_id, user_id, metrics, anomaly_report, customer_segments, seasonal_ctx
+    engine, upload_id, user_id, metrics, anomaly_report, customer_segments, seasonal_ctx,
+    business_type="business", ai_insights=None, revenue_trend=None,
 ) -> str:
     """Serialize analytics results to JSON and store in DB."""
     import uuid
@@ -266,7 +325,15 @@ def _store_analysis_results(
             return float(obj)
         raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
-    metrics_json = json.dumps(_serialize_metrics(metrics), default=decimal_serializer)
+    serialized_metrics = _serialize_metrics(metrics)
+    serialized_metrics["business_type"] = business_type
+    serialized_metrics["period_label"] = metrics.revenue.period_label
+    serialized_metrics["revenue_trend"] = revenue_trend or []
+    serialized_metrics["ai_insights"] = [
+        {"title": i.title, "insight": i.insight, "type": i.type, "priority": i.priority}
+        for i in (ai_insights or [])
+    ]
+    metrics_json = json.dumps(serialized_metrics, default=decimal_serializer)
     anomalies_json = json.dumps(_serialize_anomalies(anomaly_report), default=decimal_serializer)
     customers_json = json.dumps(_serialize_customers(customer_segments), default=decimal_serializer)
     seasonal_json = json.dumps(
@@ -282,8 +349,8 @@ def _store_analysis_results(
                     metrics, anomalies, products, customers, seasonality_context
                 ) VALUES (
                     :id, :upload_id, :user_id, :period_start, :period_end,
-                    :metrics::jsonb, :anomalies::jsonb, :products::jsonb,
-                    :customers::jsonb, :seasonal::jsonb
+                    :metrics, :anomalies, :products,
+                    :customers, :seasonal
                 )
             """),
             {

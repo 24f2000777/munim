@@ -23,7 +23,7 @@ export function MobileNav() {
             href={tab.href}
             className={cn(
               "flex-1 flex flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors duration-150 h-full rounded-lg",
-              active ? "text-saffron" : "text-muted-foreground"
+              active ? "text-saffron-500" : "text-slate-400"
             )}
           >
             <tab.icon

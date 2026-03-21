@@ -310,42 +310,74 @@ async def send_report_whatsapp(
 
 
 # ---------------------------------------------------------------------------
-# WhatsApp Business API helper
+# WhatsApp sender — supports Twilio (easy) and Meta Business API
 # ---------------------------------------------------------------------------
 
 async def _send_whatsapp_message(phone_number: str, text: str) -> str:
     """
-    Send a text message via Meta WhatsApp Business API.
-    Returns the wa_message_id from Meta's response.
+    Send a WhatsApp message via Twilio (preferred) or Meta Business API.
+    Twilio is used when TWILIO_ACCOUNT_SID is set.
+    Meta is used when WHATSAPP_ACCESS_TOKEN is set.
+    Returns a message ID string.
     """
-    if not settings.WHATSAPP_PHONE_NUMBER_ID or not settings.WHATSAPP_ACCESS_TOKEN:
-        logger.warning("WhatsApp not configured — message not sent")
-        return "mock_message_id"
 
-    url = f"https://graph.facebook.com/v21.0/{settings.WHATSAPP_PHONE_NUMBER_ID}/messages"
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": phone_number,
-        "type": "text",
-        "text": {"body": text[:4096]},  # Meta limit
-    }
+    # --- Twilio (sandbox-friendly, no business verification needed) ----------
+    if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN:
+        logger.info("Sending WhatsApp via Twilio to %s", phone_number)
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.post(
-            url,
-            json=payload,
-            headers={
-                "Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}",
-                "Content-Type": "application/json",
-            },
-        )
+        # Twilio expects "whatsapp:+91XXXXXXXXXX" format
+        to_wa   = f"whatsapp:{phone_number}" if not phone_number.startswith("whatsapp:") else phone_number
+        from_wa = settings.TWILIO_WHATSAPP_FROM
 
-    if response.status_code != 200:
-        logger.error("WhatsApp API error: %s %s", response.status_code, response.text)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Failed to send WhatsApp message. Please try again.",
-        )
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{settings.TWILIO_ACCOUNT_SID}/Messages.json"
 
-    data = response.json()
-    return data.get("messages", [{}])[0].get("id", "unknown")
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                url,
+                data={"From": from_wa, "To": to_wa, "Body": text[:1600]},
+                auth=(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN),
+            )
+
+        if response.status_code not in (200, 201):
+            logger.error("Twilio error: %s %s", response.status_code, response.text)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Twilio error: {response.json().get('message', 'Unknown error')}",
+            )
+
+        return response.json().get("sid", "twilio_ok")
+
+    # --- Meta WhatsApp Business API ------------------------------------------
+    if settings.WHATSAPP_PHONE_NUMBER_ID and settings.WHATSAPP_ACCESS_TOKEN:
+        logger.info("Sending WhatsApp via Meta API to %s", phone_number)
+
+        url = f"https://graph.facebook.com/v21.0/{settings.WHATSAPP_PHONE_NUMBER_ID}/messages"
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": phone_number,
+            "type": "text",
+            "text": {"body": text[:4096]},
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                url,
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        if response.status_code != 200:
+            logger.error("Meta WhatsApp API error: %s %s", response.status_code, response.text)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to send WhatsApp message. Please try again.",
+            )
+
+        return response.json().get("messages", [{}])[0].get("id", "unknown")
+
+    # --- Not configured -------------------------------------------------------
+    logger.warning("WhatsApp not configured — set TWILIO_ACCOUNT_SID or WHATSAPP_ACCESS_TOKEN in .env")
+    return "mock_message_id"

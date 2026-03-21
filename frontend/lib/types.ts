@@ -1,6 +1,6 @@
 export type UserType   = "smb_owner" | "ca_firm";
 export type Language   = "hi" | "en" | "hinglish";
-export type UploadStatus = "pending" | "processing" | "completed" | "failed";
+export type UploadStatus = "pending" | "processing" | "done" | "error";
 export type Severity   = "HIGH" | "MEDIUM" | "LOW";
 export type Trend      = "up" | "down" | "flat";
 export type ReportType = "weekly" | "monthly" | "alert" | "on_demand";
@@ -17,6 +17,7 @@ export interface UploadResponse {
 export interface UploadStatusResponse {
   upload_id:          string;
   status:             UploadStatus;
+  analysis_id:        string | null;
   data_health_score:  number | null;
   health_report:      Record<string, unknown> | null;
   error_message:      string | null;
@@ -44,6 +45,18 @@ export interface DeadStockItem {
   days_since_last_sale: number;
 }
 
+export interface AiInsight {
+  title:    string;
+  insight:  string;
+  type:     "opportunity" | "warning" | "celebration" | "action";
+  priority: number;
+}
+
+export interface RevenueTrendPoint {
+  date:    string;
+  revenue: number;
+}
+
 export interface MetricsResponse {
   upload_id:       string;
   period_start:    string;
@@ -52,6 +65,10 @@ export interface MetricsResponse {
   top_products:    TopProduct[];
   dead_stock:      DeadStockItem[];
   dead_stock_count: number;
+  period_label:    string;
+  business_type:   string;
+  revenue_trend:   RevenueTrendPoint[];
+  ai_insights:     AiInsight[];
 }
 
 export interface Anomaly {

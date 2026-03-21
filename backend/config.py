@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     # Celery + Redis (Upstash)
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+    USE_CELERY: str = "false"   # Set to "true" only when a Celery worker is running
 
     # Cloudflare R2
     R2_ACCOUNT_ID: str = ""
@@ -44,10 +45,15 @@ class Settings(BaseSettings):
     R2_BUCKET_NAME: str = "munim-uploads"
     R2_PUBLIC_URL: str = ""
 
-    # WhatsApp (Meta Business API)
+    # WhatsApp — Meta Business API
     WHATSAPP_PHONE_NUMBER_ID: str = ""
     WHATSAPP_ACCESS_TOKEN: str = ""
     WHATSAPP_VERIFY_TOKEN: str = ""
+
+    # WhatsApp — Twilio (alternative, easier for testing)
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_WHATSAPP_FROM: str = "whatsapp:+14155238886"  # Twilio sandbox number
 
     # Google OAuth
     GOOGLE_CLIENT_ID: str = ""

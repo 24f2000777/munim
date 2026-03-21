@@ -2,109 +2,191 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Design tokens ──────────────────────────────────────────────────────── */
 @layer base {
   :root {
-    --background:        48 33% 97%;
-    --foreground:        150 41% 14%;
-    --card:              0 0% 100%;
-    --card-foreground:   150 41% 14%;
-    --popover:           0 0% 100%;
-    --popover-foreground: 150 41% 14%;
-    --primary:           22 82% 51%;
-    --primary-foreground: 48 33% 97%;
-    --secondary:         150 41% 16%;
-    --secondary-foreground: 48 33% 97%;
-    --muted:             48 20% 93%;
-    --muted-foreground:  150 12% 48%;
-    --accent:            38 94% 56%;
-    --accent-foreground: 150 41% 14%;
-    --destructive:       0 84% 60%;
+    --background: 240 6% 6%;
+    --foreground: 240 5% 95%;
+    --card: 240 5% 9%;
+    --card-foreground: 240 5% 95%;
+    --popover: 240 5% 9%;
+    --popover-foreground: 240 5% 95%;
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 4% 14%;
+    --secondary-foreground: 240 5% 85%;
+    --muted: 240 4% 14%;
+    --muted-foreground: 240 4% 56%;
+    --accent: 24 95% 53%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 343 87% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border:            48 15% 88%;
-    --input:             48 15% 88%;
-    --ring:              22 82% 51%;
-    --radius:            0.625rem;
+    --border: 240 4% 18%;
+    --input: 240 4% 14%;
+    --ring: 24 95% 53%;
+    --radius: 0.875rem;
+    font-size: 16px;
   }
-}
 
-/* ─── Base resets ─────────────────────────────────────────────────────────── */
-@layer base {
-  * { @apply border-border; }
+  .light {
+    --background: 210 40% 96%;
+    --foreground: 222 47% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 8%;
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 94%;
+    --secondary-foreground: 222 47% 20%;
+    --muted: 210 40% 94%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 24 95% 53%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 343 87% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 88%;
+    --input: 214 32% 90%;
+    --ring: 24 95% 53%;
+  }
+
+  * {
+    @apply border-border box-border;
+  }
 
   html {
-    overflow-y: scroll;
-    scroll-behavior: smooth;
+    font-size: 16px;
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
-  }
-
-  /* Devanagari needs more line height */
-  .hindi {
-    font-family: var(--font-noto-devanagari), "Noto Sans Devanagari", sans-serif;
-    line-height: 1.9;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    line-height: 1.6;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply font-semibold tracking-tight;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
   }
 }
 
-/* ─── Shimmer skeleton ─────────────────────────────────────────────────────── */
 @layer components {
-  .skeleton {
-    background: linear-gradient(
-      90deg,
-      hsl(var(--muted)) 25%,
-      hsl(48, 20%, 90%) 50%,
-      hsl(var(--muted)) 75%
-    );
-    background-size: 200% 100%;
-    @apply animate-shimmer rounded-lg;
+  /* Cards */
+  .card {
+    @apply bg-card border border-border rounded-2xl;
   }
 
-  /* Metric card — used on dashboard */
   .metric-card {
-    @apply bg-card rounded-2xl p-5 shadow-metric border border-border/60
-           transition-all duration-200 hover:shadow-warm hover:-translate-y-0.5;
+    @apply card p-6 transition-all duration-200;
   }
 
-  /* Sidebar nav link */
-  .nav-link {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
-           transition-colors duration-150 cursor-pointer;
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-orange-500/20;
   }
-  .nav-link-default { @apply text-cream/70 hover:bg-white/10 hover:text-cream; }
-  .nav-link-active  { @apply bg-saffron text-white shadow-sm; }
 
-  /* Severity badges */
-  .badge-high   { @apply bg-red-50 text-red-700 border border-red-200 rounded-full px-2.5 py-0.5 text-xs font-semibold; }
-  .badge-medium { @apply bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2.5 py-0.5 text-xs font-semibold; }
-  .badge-low    { @apply bg-blue-50 text-blue-600 border border-blue-200 rounded-full px-2.5 py-0.5 text-xs font-semibold; }
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 bg-secondary hover:bg-secondary/80 text-foreground text-sm font-medium px-4 py-2.5 rounded-xl border border-border transition-all duration-150;
+  }
 
-  /* Glass card effect for landing */
-  .glass-card {
-    @apply bg-white/60 backdrop-blur-md border border-white/40 rounded-2xl;
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 text-muted-foreground hover:text-foreground hover:bg-secondary text-sm font-medium px-3 py-2 rounded-xl transition-all duration-150;
+  }
+
+  /* Nav */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-muted-foreground text-sm font-medium transition-all duration-150 hover:text-foreground hover:bg-white/5 cursor-pointer;
+  }
+
+  .nav-item-active {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-foreground text-sm font-semibold bg-white/10 cursor-pointer;
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full;
+  }
+  .badge-up      { @apply badge bg-emerald-500/15 text-emerald-400; }
+  .badge-down    { @apply badge bg-red-500/15 text-red-400; }
+  .badge-neutral { @apply badge bg-white/10 text-muted-foreground; }
+  .badge-high    { @apply badge bg-red-500/15 text-red-400; }
+  .badge-medium  { @apply badge bg-amber-500/15 text-amber-400; }
+  .badge-low     { @apply badge bg-white/10 text-muted-foreground; }
+
+  /* Light mode badge overrides */
+  .light .badge-up      { @apply bg-emerald-50 text-emerald-700; }
+  .light .badge-down    { @apply bg-red-50 text-red-700; }
+  .light .badge-neutral { @apply bg-slate-100 text-slate-600; }
+  .light .badge-high    { @apply bg-red-50 text-red-700; }
+  .light .badge-medium  { @apply bg-amber-50 text-amber-700; }
+  .light .badge-low     { @apply bg-slate-100 text-slate-600; }
+
+  /* Inputs */
+  .input-field {
+    @apply w-full px-4 py-2.5 text-base border border-border rounded-xl bg-secondary text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-colors;
+  }
+
+  /* Skeleton */
+  .skeleton {
+    @apply bg-secondary animate-pulse rounded-xl;
+  }
+
+  /* Typography utilities */
+  .page-title {
+    @apply text-3xl font-bold text-foreground tracking-tight;
+  }
+  .page-subtitle {
+    @apply text-base text-muted-foreground mt-1;
+  }
+  .section-title {
+    @apply text-xs font-bold text-muted-foreground uppercase tracking-widest;
+  }
+
+  /* Gradient metric card variants */
+  .metric-orange {
+    background: linear-gradient(135deg, rgba(249,115,22,0.12) 0%, rgba(249,115,22,0.04) 100%);
+    border-color: rgba(249,115,22,0.25);
+  }
+  .metric-emerald {
+    background: linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 100%);
+    border-color: rgba(34,197,94,0.25);
+  }
+  .metric-blue {
+    background: linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(59,130,246,0.04) 100%);
+    border-color: rgba(59,130,246,0.25);
+  }
+  .metric-purple {
+    background: linear-gradient(135deg, rgba(168,85,247,0.12) 0%, rgba(168,85,247,0.04) 100%);
+    border-color: rgba(168,85,247,0.25);
   }
 }
 
-/* ─── Recharts overrides ──────────────────────────────────────────────────── */
-.recharts-cartesian-axis-tick-value {
-  fill: hsl(150, 12%, 48%);
-  font-size: 11px;
-  font-family: var(--font-inter), sans-serif;
+@layer utilities {
+  .text-gradient {
+    background: linear-gradient(135deg, #F97316 0%, #FB923C 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.1) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+  .glow-orange {
+    box-shadow: 0 0 30px rgba(249,115,22,0.15);
+  }
 }
 
-.recharts-tooltip-wrapper {
-  border-radius: 12px !important;
+/* Recharts overrides */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: rgba(255,255,255,0.05);
 }
-
-/* ─── Custom scrollbar ───────────────────────────────────────────────────── */
-::-webkit-scrollbar           { width: 6px; height: 6px; }
-::-webkit-scrollbar-track     { background: transparent; }
-::-webkit-scrollbar-thumb     { background: hsl(var(--border)); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground)); }
+.light .recharts-cartesian-grid-horizontal line,
+.light .recharts-cartesian-grid-vertical line {
+  stroke: rgba(0,0,0,0.06);
+}

@@ -78,6 +78,10 @@ async def get_metrics(
         "top_products": m.get("top_products", []),
         "dead_stock": m.get("dead_stock", []),
         "dead_stock_count": m.get("dead_stock_count", 0),
+        "period_label": m.get("period_label", "This period vs last period"),
+        "business_type": m.get("business_type", "business"),
+        "revenue_trend": m.get("revenue_trend", []),
+        "ai_insights": m.get("ai_insights", []),
     }
 
 
@@ -137,12 +141,19 @@ async def get_customers(
 
 @router.get("/history/list")
 async def get_analysis_history(
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+    # Support both page/page_size (frontend) and limit/offset (legacy)
+    page:      int = Query(1,  ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    limit:     int = Query(0,  ge=0),   # 0 = use page_size instead
+    offset:    int = Query(0,  ge=0),
     current_user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """Paginated list of past analyses for the authenticated user."""
+    # Resolve limit/offset — prefer page/page_size if limit not explicitly set
+    effective_limit  = limit if limit > 0 else page_size
+    effective_offset = offset if limit > 0 else (page - 1) * page_size
+
     result = await db.execute(
         text("""
             SELECT
@@ -163,7 +174,7 @@ async def get_analysis_history(
             ORDER BY ar.created_at DESC
             LIMIT :limit OFFSET :offset
         """),
-        {"user_id": current_user.user_id, "limit": limit, "offset": offset},
+        {"user_id": current_user.user_id, "limit": effective_limit, "offset": effective_offset},
     )
     rows = result.fetchall()
 
@@ -175,8 +186,10 @@ async def get_analysis_history(
 
     return {
         "total": total,
-        "limit": limit,
-        "offset": offset,
+        "page": page,
+        "page_size": effective_limit,
+        "limit": effective_limit,
+        "offset": effective_offset,
         "items": [
             {
                 "analysis_id": r.id,

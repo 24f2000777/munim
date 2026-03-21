@@ -39,21 +39,38 @@ logger = logging.getLogger(__name__)
 COLUMN_PATTERNS: dict[str, list[str]] = {
     "date": [
         "date", "dt", "invoice date", "bill date", "transaction date",
-        "sale date", "tarikh", "तारीख", "दिनांक", "inv date",
+        "sale date", "voucher date", "posting date", "entry date",
+        "inv date", "txn date", "trans date", "document date",
+        "challan date", "receipt date", "payment date", "booking date",
+        "order date", "tarikh", "तारीख", "दिनांक",
     ],
     "customer": [
         "customer", "client", "party", "party name", "customer name",
-        "buyer", "purchaser", "naam", "नाम", "ग्राहक", "khata",
+        "buyer", "purchaser", "ledger name", "account name",
+        "vendor", "supplier", "counterparty", "recipient",
+        "consignee", "payer", "payee", "naam", "नाम", "ग्राहक", "khata",
     ],
     "product": [
         "product", "item", "description", "particulars", "goods",
-        "article", "maal", "saman", "product name", "item name",
-        "माल", "सामान", "वस्तु", "item description",
+        "article", "product name", "item name", "item description",
+        "narration", "nature of supply", "service", "category",
+        "account head", "sub ledger", "sku", "hsn code",
+        "maal", "saman", "माल", "सामान", "वस्तु",
     ],
     "amount": [
         "amount", "total", "net amount", "sale amount", "revenue",
-        "value", "price", "net total", "invoice amount", "bill amount",
-        "rashi", "राशि", "मूल्य", "कुल", "subtotal", "net value",
+        "value", "net total", "invoice amount", "bill amount",
+        "taxable value", "invoice value", "gross amount", "total amount",
+        "transaction amount", "net value", "subtotal",
+        "rashi", "राशि", "मूल्य", "कुल",
+    ],
+    "debit": [
+        "debit", "dr amount", "debit amount",
+        "withdrawal", "withdrawl", "outflow",
+    ],
+    "credit": [
+        "credit", "cr amount", "credit amount",
+        "deposit", "inflow", "received",
     ],
     "quantity": [
         "qty", "quantity", "units", "nos", "number", "count",
@@ -61,26 +78,40 @@ COLUMN_PATTERNS: dict[str, list[str]] = {
     ],
     "unit_price": [
         "rate", "price", "unit price", "per unit", "mrp",
-        "dar", "दर", "मूल्य", "unit rate",
+        "dar", "दर", "unit rate",
     ],
 }
 
 # Date format patterns to try in order (most common Indian formats first)
 DATE_FORMATS: list[str] = [
-    "%d/%m/%Y",   # 15/01/2026
-    "%d-%m-%Y",   # 15-01-2026
-    "%d/%m/%y",   # 15/01/26
-    "%d-%m-%y",   # 15-01-26
-    "%Y-%m-%d",   # 2026-01-15 (ISO)
-    "%Y%m%d",     # 20260115 (Tally format — in case mixed files)
-    "%d %b %Y",   # 15 Jan 2026
-    "%d %b %y",   # 15 Jan 26
-    "%d-%b-%Y",   # 15-Jan-2026
-    "%d-%b-%y",   # 15-Jan-26
-    "%d/%b/%Y",   # 15/Jan/2026
-    "%B %d, %Y",  # January 15, 2026
-    "%d.%m.%Y",   # 15.01.2026
-    "%d.%m.%y",   # 15.01.26
+    # Indian / day-first formats
+    "%d/%m/%Y",       # 15/01/2026
+    "%d-%m-%Y",       # 15-01-2026
+    "%d/%m/%y",       # 15/01/26
+    "%d-%m-%y",       # 15-01-26
+    "%d/%m/%Y %H:%M", # 15/01/2026 08:26
+    "%d/%m/%Y %H:%M:%S", # 15/01/2026 08:26:00
+    # ISO
+    "%Y-%m-%d",       # 2026-01-15
+    "%Y-%m-%d %H:%M", # 2026-01-15 08:26
+    "%Y-%m-%d %H:%M:%S", # 2026-01-15 08:26:00
+    "%Y%m%d",         # 20260115 (Tally)
+    # Month-name formats
+    "%d %b %Y",       # 15 Jan 2026
+    "%d %b %y",       # 15 Jan 26
+    "%d-%b-%Y",       # 15-Jan-2026
+    "%d-%b-%y",       # 15-Jan-26
+    "%d/%b/%Y",       # 15/Jan/2026
+    "%B %d, %Y",      # January 15, 2026
+    # Dot-separated
+    "%d.%m.%Y",       # 15.01.2026
+    "%d.%m.%y",       # 15.01.26
+    # American month-first formats (M/D/YYYY, MM/DD/YYYY with optional time)
+    "%m/%d/%Y %H:%M", # 12/1/2010 8:26  — UCI Online Retail, US exports
+    "%m/%d/%Y %H:%M:%S", # 12/1/2010 8:26:00
+    "%m/%d/%Y",       # 12/01/2026
+    "%m/%d/%y",       # 12/01/26
+    "%m-%d-%Y",       # 12-01-2026
 ]
 
 
@@ -123,13 +154,16 @@ def parse_excel(
     source: str | Path | bytes | BytesIO,
     *,
     sheet_name: Optional[str] = None,
+    column_map_override: Optional[dict] = None,
 ) -> ExcelParseResult:
     """
     Parse an Excel (.xlsx/.xls) file into a clean ExcelParseResult.
 
     Args:
-        source:     File path, raw bytes, or BytesIO buffer.
-        sheet_name: Specific sheet to parse. None = auto-select best sheet.
+        source:               File path, raw bytes, or BytesIO buffer.
+        sheet_name:           Specific sheet to parse. None = auto-select best sheet.
+        column_map_override:  Pre-detected column map (e.g. from Gemini) to use instead
+                              of rule-based detection.
 
     Returns:
         ExcelParseResult with clean DataFrame and metadata.
@@ -138,11 +172,13 @@ def parse_excel(
         ExcelParseError: If no usable sales data can be found.
     """
     raw = _load_source(source)
-    return _parse_workbook(raw, sheet_name=sheet_name)
+    return _parse_workbook(raw, sheet_name=sheet_name, column_map_override=column_map_override)
 
 
 def parse_csv(
     source: str | Path | bytes | BytesIO,
+    *,
+    column_map_override: Optional[dict] = None,
 ) -> ExcelParseResult:
     """
     Parse a CSV file into a clean ExcelParseResult.
@@ -150,13 +186,15 @@ def parse_csv(
     Handles common Indian CSV encodings: UTF-8, UTF-8 BOM, Latin-1.
 
     Args:
-        source: File path, raw bytes, or BytesIO buffer.
+        source:               File path, raw bytes, or BytesIO buffer.
+        column_map_override:  Pre-detected column map (e.g. from Gemini) to use instead
+                              of rule-based detection.
 
     Returns:
         ExcelParseResult with clean DataFrame and metadata.
     """
     raw = _load_source(source)
-    return _parse_csv_bytes(raw)
+    return _parse_csv_bytes(raw, column_map_override=column_map_override)
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +215,11 @@ def _load_source(source: str | Path | bytes | BytesIO) -> bytes:
     raise TypeError(f"Unsupported source type: {type(source)}")
 
 
-def _parse_workbook(raw: bytes, sheet_name: Optional[str]) -> ExcelParseResult:
+def _parse_workbook(
+    raw: bytes,
+    sheet_name: Optional[str],
+    column_map_override: Optional[dict] = None,
+) -> ExcelParseResult:
     """Load workbook, pick best sheet, parse it."""
     buffer = BytesIO(raw)
 
@@ -230,7 +272,16 @@ def _parse_workbook(raw: bytes, sheet_name: Optional[str]) -> ExcelParseResult:
 
         column_map = _detect_columns(df.columns.tolist())
 
-        if "date" not in column_map or "amount" not in column_map:
+        # Override with Gemini-detected mapping if provided
+        if column_map_override:
+            # Only use columns that actually exist in the dataframe
+            valid_override = {k: v for k, v in column_map_override.items() if v in df.columns}
+            if valid_override.get("date") or valid_override.get("amount") or valid_override.get("credit"):
+                column_map = valid_override
+
+        has_amount = "amount" in column_map
+        has_dr_cr = "debit" in column_map or "credit" in column_map
+        if "date" not in column_map or (not has_amount and not has_dr_cr):
             all_warnings.append(
                 f"Sheet {sname!r}: could not identify required date/amount columns — skipped. "
                 f"Detected: {column_map}"
@@ -320,17 +371,34 @@ def _detect_columns(columns: list[str]) -> dict[str, str]:
 
     for semantic, patterns in COLUMN_PATTERNS.items():
         for pattern in patterns:
-            # Exact match first
+            # Exact match first — fastest and most reliable
             if pattern in col_lower_map:
                 result[semantic] = col_lower_map[pattern]
                 break
-            # Partial match
+            # Partial match: pattern keyword appears inside the column name
+            # (e.g., pattern "invoice date" found inside column "sales invoice date")
+            # We do NOT do the reverse (column inside pattern) to avoid false positives
+            # like "amount" matching pattern "dr amount".
             for col_lower, col_original in col_lower_map.items():
-                if pattern in col_lower or col_lower in pattern:
+                if pattern in col_lower:
                     result[semantic] = col_original
                     break
             if semantic in result:
                 break
+
+    # Post-processing: if the "amount" column name contains "debit" or "credit",
+    # it was misclassified via partial substring match. Remove it from "amount"
+    # so that the debit/credit combination logic takes over.
+    if "amount" in result:
+        amt_lower = result["amount"].lower()
+        if "debit" in amt_lower or "credit" in amt_lower:
+            # Don't use this as the generic amount — the debit/credit pair handles it
+            del result["amount"]
+            # Ensure the column is also registered under the correct semantic
+            if "debit" in amt_lower and "debit" not in result:
+                result["debit"] = result["amount"] if "amount" in result else list(col_lower_map.values())[0]
+            if "credit" in amt_lower and "credit" not in result:
+                result["credit"] = result.get("amount", list(col_lower_map.values())[0])
 
     return result
 
@@ -362,9 +430,12 @@ def _normalise_dataframe(
     amount_col = column_map.get("amount")
     customer_col = column_map.get("customer")
     product_col = column_map.get("product")
+    debit_col = column_map.get("debit")
+    credit_col = column_map.get("credit")
+    # Use debit/credit combination only when no direct amount column exists
+    use_dr_cr = not amount_col and (debit_col or credit_col)
 
     failed_dates = 0
-    failed_amounts = 0
 
     for idx, row in df.iterrows():
         # Parse date
@@ -374,9 +445,15 @@ def _normalise_dataframe(
             failed_dates += 1
             continue
 
-        # Parse amount
-        amount_raw = str(row.get(amount_col, "")).strip() if amount_col else ""
-        amount = _parse_amount(amount_raw)
+        # Parse amount — direct column or debit/credit combination
+        if use_dr_cr:
+            cr = _parse_amount(str(row.get(credit_col, "")).strip() if credit_col else "")
+            dr = _parse_amount(str(row.get(debit_col, "")).strip() if debit_col else "")
+            # Net credit = income (positive), net debit = expense (negative)
+            amount = cr - dr
+        else:
+            amount_raw = str(row.get(amount_col, "")).strip() if amount_col else ""
+            amount = _parse_amount(amount_raw)
 
         # Customer — optional, default to Walk-in
         customer_raw = str(row.get(customer_col, "")).strip() if customer_col else ""
@@ -410,6 +487,14 @@ def _normalise_dataframe(
     result_df = result_df[~zero_mask].reset_index(drop=True)
 
     rows_dropped = initial_rows - len(result_df)
+
+    if result_df.empty or "date" not in result_df.columns:
+        raise ExcelParseError(
+            f"No valid rows could be parsed. "
+            f"All {initial_rows} rows failed date/amount validation. "
+            f"Check that the file has recognisable date and amount columns."
+        )
+
     result_df = result_df.sort_values("date").reset_index(drop=True)
 
     return result_df, rows_dropped, warnings
@@ -419,7 +504,7 @@ def _normalise_dataframe(
 # Internal — CSV
 # ---------------------------------------------------------------------------
 
-def _parse_csv_bytes(raw: bytes) -> ExcelParseResult:
+def _parse_csv_bytes(raw: bytes, column_map_override: Optional[dict] = None) -> ExcelParseResult:
     """Parse CSV bytes with automatic encoding detection."""
     warnings: list[str] = []
 
@@ -461,7 +546,15 @@ def _parse_csv_bytes(raw: bytes) -> ExcelParseResult:
 
     column_map = _detect_columns(df.columns.tolist())
 
-    if "date" not in column_map or "amount" not in column_map:
+    # Override with Gemini-detected mapping if provided
+    if column_map_override:
+        valid_override = {k: v for k, v in column_map_override.items() if v in df.columns}
+        if valid_override.get("date") or valid_override.get("amount") or valid_override.get("credit"):
+            column_map = valid_override
+
+    has_amount = "amount" in column_map
+    has_dr_cr = "debit" in column_map or "credit" in column_map
+    if "date" not in column_map or (not has_amount and not has_dr_cr):
         raise ExcelParseError(
             f"Could not detect required date/amount columns. "
             f"Detected: {column_map}. Columns found: {df.columns.tolist()}"
@@ -503,9 +596,15 @@ def _parse_date(raw: str) -> Optional[pd.Timestamp]:
         except (ValueError, TypeError):
             continue
 
-    # Last resort: let pandas infer (dayfirst=True for Indian format)
+    # Last resort: let pandas infer using format='mixed' (pandas 2.x compatible)
     try:
-        return pd.Timestamp(pd.to_datetime(raw, dayfirst=True, infer_datetime_format=True))
+        return pd.Timestamp(pd.to_datetime(raw, format="mixed", dayfirst=True))
+    except Exception:
+        pass
+
+    # Final fallback: plain parse with no hints
+    try:
+        return pd.Timestamp(pd.to_datetime(raw))
     except Exception:
         logger.debug("Could not parse date: %r", raw)
         return None
@@ -551,3 +650,69 @@ def _parse_amount(raw: str) -> Decimal:
     except InvalidOperation:
         logger.debug("Could not parse amount: %r", raw)
         return Decimal(0)
+
+
+# ---------------------------------------------------------------------------
+# Peek helpers — for Gemini schema detection pre-pass
+# ---------------------------------------------------------------------------
+
+def peek_raw_sample(
+    raw: bytes,
+    max_rows: int = 8,
+) -> tuple[list[str], list[dict]]:
+    """
+    Quickly read headers + sample rows without normalization.
+    Used by Gemini schema detector before full parsing.
+    Returns (headers, sample_rows_as_dicts).
+    """
+    is_xlsx = raw[:4] == b"PK\x03\x04"
+    engine = "openpyxl" if is_xlsx else "xlrd"
+    buffer = BytesIO(raw)
+    try:
+        xls = pd.ExcelFile(buffer, engine=engine)
+        sname = xls.sheet_names[0]
+        raw_df = xls.parse(sname, header=None, dtype=str)
+        header_idx = _find_header_row(raw_df)
+        if header_idx is None:
+            return [], []
+        df = xls.parse(sname, header=header_idx, dtype=str)
+        df.columns = [str(c).strip() for c in df.columns]
+        sample = df.head(max_rows).fillna("").to_dict(orient="records")
+        return df.columns.tolist(), sample
+    except Exception:
+        return [], []
+
+
+def peek_raw_sample_csv(
+    raw: bytes,
+    max_rows: int = 8,
+) -> tuple[list[str], list[dict]]:
+    """Same as peek_raw_sample but for CSV bytes."""
+    for encoding in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+        try:
+            text = raw.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        return [], []
+
+    for sep in (",", "\t", ";", "|"):
+        try:
+            df_raw = pd.read_csv(BytesIO(text.encode("utf-8")), sep=sep, dtype=str, header=None)
+            if df_raw.shape[1] >= 2:
+                break
+        except Exception:
+            continue
+    else:
+        return [], []
+
+    df_raw = pd.read_csv(BytesIO(text.encode("utf-8")), sep=sep, dtype=str, header=None)
+    header_idx = _find_header_row(df_raw)
+    if header_idx is None:
+        return [], []
+
+    df = pd.read_csv(BytesIO(text.encode("utf-8")), sep=sep, dtype=str, header=header_idx)
+    df.columns = [str(c).strip() for c in df.columns]
+    sample = df.head(max_rows).fillna("").to_dict(orient="records")
+    return df.columns.tolist(), sample

@@ -1,358 +1,364 @@
 <div align="center">
 
-# 🏪 मुनीम · Munim
+<br />
+
+# मुनीम · Munim
 
 ### AI Business Intelligence for Indian Small Businesses
 
-[![Python](https://img.shields.io/badge/Python-3.12-3776ab?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![Next.js](https://img.shields.io/badge/Next.js-15-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org)
-[![Gemini](https://img.shields.io/badge/Gemini_2.0_Flash-AI-4285f4?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev)
-[![WhatsApp](https://img.shields.io/badge/WhatsApp-Business_API-25d366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://business.whatsapp.com)
+**Upload any financial file. Get instant AI analysis. Receive WhatsApp reports in Hindi or English.**
+Built for Indian SMBs — kirana stores, medical shops, textile traders, and every business in between.
 
-[![Tests](https://img.shields.io/badge/Tests-122_passing-2ea44f?style=for-the-badge&logo=pytest&logoColor=white)]()
-[![Security](https://img.shields.io/badge/Bandit-0_issues-brightgreen?style=for-the-badge&logo=shield&logoColor=white)]()
-[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)]()
+<br />
 
----
-
-*मुनीम* (Mu·nim) — the trusted accountant who knows your business inside out.
-
-**Munim converts raw Tally / Excel exports into plain-language WhatsApp reports in Hindi & English — automatically, every week, zero tech skills required.**
+[![Python](https://img.shields.io/badge/Python-3.12-3776ab?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Next.js](https://img.shields.io/badge/Next.js-15-000000?style=flat-square&logo=nextdotjs&logoColor=white)](https://nextjs.org)
+[![Gemini](https://img.shields.io/badge/Gemini_Flash-AI-4285f4?style=flat-square&logo=google&logoColor=white)](https://ai.google.dev)
+[![PostgreSQL](https://img.shields.io/badge/Neon_PostgreSQL-4169e1?style=flat-square&logo=postgresql&logoColor=white)](https://neon.tech)
+[![Tests](https://img.shields.io/badge/Tests-122_passing-2ea44f?style=flat-square&logo=pytest&logoColor=white)]()
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)]()
 
 </div>
 
 ---
 
-## ✨ What It Does
+## What It Does
 
 ```
-📤 Upload Tally XML or Excel   →   🧮 Auto-compute analytics   →   💬 WhatsApp report in Hindi/English
+📤  Upload Tally XML / Excel / CSV
+        ↓
+🤖  Gemini AI detects your column names automatically — no setup needed
+        ↓
+📊  Analytics engine computes revenue, products, customers, anomalies
+        ↓
+✨  Gemini generates 4 business-specific AI insights
+        ↓
+💬  WhatsApp report sent in Hindi / English / Hinglish
 ```
 
-| For **SMB Owners** | For **CA Firms** |
+| For **Business Owners** | For **CA Firms** |
 |---|---|
-| Upload Tally export → get WhatsApp summary | Manage multiple client portfolios |
+| Upload Tally export → instant dashboard | Manage entire client portfolio |
 | Revenue trends, top products, dead stock | At-risk client alerts |
-| Hindi / Hinglish / English reports | Bulk report generation |
-| Weekly & monthly automated delivery | Client drill-downs |
+| RFM customer segmentation | Bulk report generation |
+| Anomaly detection (drops, spikes) | Per-client drill-down views |
+| WhatsApp reports in your language | Client-level analytics |
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        CLIENT LAYER                             │
-│   📱 WhatsApp Business API    🌐 Next.js 15 (App Router)        │
-└───────────────┬──────────────────────────┬──────────────────────┘
-                │                          │
-                ▼                          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      FASTAPI BACKEND                            │
-│                                                                 │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────┐   │
-│  │  /auth   │ │ /upload  │ │/analysis │ │    /reports      │   │
-│  │  /ca     │ │          │ │          │ │    /whatsapp     │   │
-│  └──────────┘ └────┬─────┘ └────┬─────┘ └────────┬─────────┘   │
-│                    │             │                │              │
-│              ┌─────▼─────────────▼────────────────▼──────┐      │
-│              │           CELERY WORKERS                   │      │
-│              │  process_upload  ·  send_reports           │      │
-│              └─────────────────────────────────────────────┘     │
-└──────────────────────────────────────────────────────────────────┘
-                    │                     │
-        ┌───────────▼──────┐   ┌──────────▼────────────┐
-        │  🐘 Neon Postgres │   │ ☁️ Cloudflare R2       │
-        │  (persistent DB)  │   │ (file storage)         │
-        └───────────────────┘   └───────────────────────┘
-                    │
-        ┌───────────▼───────────┐
-        │ 🔴 Upstash Redis       │
-        │ (Celery broker/cache) │
-        └───────────────────────┘
-                    │
-        ┌───────────▼──────────────┐
-        │ 🤖 Gemini 2.0 Flash       │
-        │ (LLM narrator — free tier)│
-        └──────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                        CLIENT LAYER                               │
+│   📱 WhatsApp (Twilio / Meta)   🌐 Next.js 15 (App Router)       │
+└────────────────┬─────────────────────────┬───────────────────────┘
+                 │                         │
+                 ▼                         ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                     API LAYER  (FastAPI)                          │
+│   /upload  /analysis  /reports  /auth  /ca  /whatsapp            │
+└───────────────┬─────────────────────────┬────────────────────────┘
+                │                         │
+       ┌────────▼──────────┐    ┌─────────▼──────────┐
+       │    Ingestor        │    │     Analytics       │
+       │  ───────────────  │    │  ─────────────────  │
+       │  Tally XML        │    │  metrics.py         │
+       │  Excel / XLSX     │    │  anomaly.py         │
+       │  CSV              │    │  rfm.py             │
+       │  Gemini schema    │    │  seasonality.py     │
+       │  detection        │    │  ai_insights.py     │
+       └────────┬──────────┘    └─────────┬──────────┘
+                │                         │
+                └──────────┬──────────────┘
+                           ▼
+               ┌───────────────────────┐
+               │    Neon PostgreSQL    │
+               │  ─────────────────── │
+               │  users               │
+               │  uploads             │
+               │  analysis_results    │
+               │  reports             │
+               └───────────────────────┘
 ```
 
 ---
 
-## 🚀 Tech Stack
+## Features
 
-| Layer | Technology | Why |
-|---|---|---|
-| **Backend** | FastAPI + Python 3.12 | Async-first, type-safe, auto-docs |
-| **Frontend** | Next.js 15 + App Router | RSC, streaming, TypeScript |
-| **Database** | Neon (serverless Postgres) | Free tier, pg_vector ready |
-| **File Storage** | Cloudflare R2 | S3-compatible, free egress |
-| **Task Queue** | Celery + Upstash Redis | Beat scheduler for weekly reports |
-| **AI Narrator** | Gemini 2.0 Flash | 1M tokens/day free — perfect for MVP |
-| **Auth** | NextAuth.js + PyJWT HS256 | CVE-hardened, no python-jose |
-| **Messaging** | Meta WhatsApp Business API | Direct delivery to owner's phone |
+### 🤖 AI-Powered Schema Detection
+Upload **any** financial file — Munim uses Gemini to understand your column names automatically. No configuration, no column mapping. Works with:
+- `Bill Date`, `Invoice Date`, `Transaction Date`, `Date`, `तारीख`
+- `Net Total`, `Amount`, `Total`, `Sale Value`
+- `Party Name`, `Customer`, `Client`, `Buyer`
+- Separate Debit / Credit columns from bank statements
+
+### 📊 Complete Business Analytics
+- **Revenue Metrics** — Current vs previous period with % change and trend direction
+- **Top Products** — Ranked by revenue with trend indicators
+- **Dead Stock Detection** — Products with no sales in 14+ days
+- **Customer Segmentation** — RFM analysis: Champions, Loyal, At Risk, Lost
+- **Anomaly Detection** — Revenue drops, unusual spikes, pattern breaks
+- **Adaptive Periods** — Auto-detects if data spans a week, month, or quarter
+
+### ✨ AI Business Insights
+After every analysis, Gemini generates 4 actionable insights specific to your business type:
+- 🟢 **Opportunity** — Growth levers to act on
+- 🟡 **Warning** — Issues that need attention
+- 🟠 **Celebration** — Wins worth acknowledging
+- 🔵 **Action** — Specific things to do this week
+
+### 💬 WhatsApp Reports
+- Narrative reports in **Hindi**, **English**, or **Hinglish**
+- Sent via **Twilio** sandbox (no business verification needed) or Meta Business API
+- Written by Gemini like a trusted advisor, not a robot
+- Template fallback if AI is unavailable — pipeline never fails
+
+### 🏪 Supported File Formats
+| Format | Description |
+|--------|-------------|
+| **Tally XML** | Export from TallyPrime — Gateway of Tally |
+| **Excel (.xlsx, .xls)** | Any spreadsheet with date + amount columns |
+| **CSV** | Any comma-separated file |
 
 ---
 
-## 📁 Repository Structure
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | Next.js 15, TypeScript, Tailwind CSS, Recharts |
+| **Backend** | FastAPI, Python 3.12, SQLAlchemy (async) |
+| **Database** | Neon PostgreSQL (serverless) |
+| **AI** | Google Gemini Flash (`google-genai` SDK) |
+| **Auth** | NextAuth.js v5, Google OAuth |
+| **WhatsApp** | Twilio (primary) + Meta Business API (fallback) |
+| **File Parsing** | openpyxl, pandas, lxml |
+| **Testing** | pytest — 122 tests |
+
+---
+
+## Quick Start
+
+### Prerequisites
+- Python 3.12+ and Node.js 20+
+- [Neon PostgreSQL](https://neon.tech) database (free tier works)
+- [Google AI Studio](https://aistudio.google.com) API key (free)
+- [Google OAuth](https://console.cloud.google.com) client ID + secret
+
+### 1 — Clone and set up backend
+
+```bash
+git clone https://github.com/your-username/munim.git
+cd munim/backend
+
+python3 -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+cp .env.example .env            # Then fill in your credentials
+```
+
+### 2 — Configure `.env`
+
+```env
+# Database
+DATABASE_URL=postgresql+asyncpg://user:pass@ep-xxx.neon.tech/neondb?sslmode=require
+
+# Google AI (Gemini)
+GOOGLE_API_KEY=AIza...
+
+# Google OAuth
+GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-...
+NEXTAUTH_SECRET=any-random-32-char-string
+
+# WhatsApp via Twilio (sandbox — no business verification needed)
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+
+# App
+APP_ENV=development
+APP_SECRET_KEY=change-me-in-production
+```
+
+### 3 — Start backend
+
+```bash
+cd backend
+python -m uvicorn main:app --reload --port 8000
+# Swagger docs: http://localhost:8000/docs
+```
+
+### 4 — Set up and start frontend
+
+```bash
+cd frontend
+npm install
+
+# Create frontend/.env.local
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=same-as-backend-secret
+GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-...
+NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+
+npm run dev
+# App: http://localhost:3000
+```
+
+---
+
+## WhatsApp Setup (5 minutes, free)
+
+### Option A — Twilio Sandbox (Recommended for testing)
+
+1. Sign up at [twilio.com](https://twilio.com) — no credit card needed
+2. Go to **Messaging → Try it out → Send a WhatsApp message**
+3. Send the activation code to **+1 415 523 8886** on WhatsApp
+4. Copy **Account SID** and **Auth Token** from Console → Account Info
+5. Paste into `.env` → done!
+
+### Option B — Meta Business API (Production)
+
+Set `WHATSAPP_PHONE_NUMBER_ID` and `WHATSAPP_ACCESS_TOKEN` in `.env`.
+Munim automatically uses whichever provider is configured.
+Twilio takes priority if both are set.
+
+---
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | ✅ | Neon PostgreSQL connection string |
+| `GOOGLE_API_KEY` | ✅ | Gemini API key from Google AI Studio |
+| `GOOGLE_CLIENT_ID` | ✅ | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | ✅ | Google OAuth client secret |
+| `NEXTAUTH_SECRET` | ✅ | Random string for session signing |
+| `TWILIO_ACCOUNT_SID` | ⚡ | Twilio Account SID (WhatsApp) |
+| `TWILIO_AUTH_TOKEN` | ⚡ | Twilio Auth Token (WhatsApp) |
+| `TWILIO_WHATSAPP_FROM` | ⚡ | Sandbox number — default: `whatsapp:+14155238886` |
+| `WHATSAPP_PHONE_NUMBER_ID` | — | Meta Business API phone number ID |
+| `WHATSAPP_ACCESS_TOKEN` | — | Meta Business API access token |
+| `APP_ENV` | — | `development` or `production` |
+| `APP_SECRET_KEY` | — | JWT signing secret |
+
+---
+
+## How AI Schema Detection Works
+
+Munim sends only the column headers and 8 sample rows to Gemini — never the full dataset:
+
+```
+Headers:  ["Bill Date", "Invoice No", "Party Name", "Item Name", "Net Total"]
+Samples:  [{"Bill Date": "2026-01-15", "Party Name": "Sharma Medical", ...}]
+
+Gemini returns:
+{
+  "date_column":     "Bill Date",
+  "amount_column":   "Net Total",
+  "customer_column": "Party Name",
+  "product_column":  "Item Name",
+  "business_type":   "medical pharmacy",
+  "confidence":      0.97
+}
+```
+
+If confidence < 0.65 or Gemini is unavailable, falls back to rule-based pattern matching.
+
+---
+
+## Project Structure
 
 ```
 munim/
-├── 🔧 backend/
+├── backend/
 │   ├── routers/
-│   │   ├── auth.py          # User sync, profile, account deletion
-│   │   ├── upload.py        # Tally XML / Excel ingestion
-│   │   ├── analysis.py      # Metrics, anomalies, customer segments
-│   │   ├── reports.py       # LLM report generation + WhatsApp send
-│   │   ├── whatsapp.py      # Meta webhook + opt-in
-│   │   └── ca.py            # CA firm portfolio management
+│   │   ├── auth.py              # Google OAuth + profile management
+│   │   ├── upload.py            # File upload + status polling
+│   │   ├── analysis.py          # Metrics, anomalies, customers, history
+│   │   ├── reports.py           # WhatsApp report generation + delivery
+│   │   ├── ca.py                # CA firm portfolio endpoints
+│   │   └── whatsapp.py          # Webhook + send endpoints
 │   ├── services/
+│   │   ├── ingestor/
+│   │   │   ├── excel_parser.py           # Excel / CSV parsing
+│   │   │   ├── tally_parser.py           # Tally XML parsing
+│   │   │   ├── schema_detector.py        # Format detection + routing
+│   │   │   └── gemini_schema_detector.py # AI column detection
 │   │   ├── analytics/
-│   │   │   ├── metrics.py   # Revenue, top products, dead stock, RFM
-│   │   │   └── anomaly.py   # Statistical anomaly detection
-│   │   ├── reporter/
-│   │   │   └── llm_narrator.py  # Gemini 2.0 Flash narrator
-│   │   └── parsers/
-│   │       ├── tally_xml.py     # TallyPrime XML parser
-│   │       └── excel_parser.py  # Excel/CSV normaliser
+│   │   │   ├── metrics.py       # Revenue, top products, dead stock
+│   │   │   ├── anomaly.py       # Anomaly detection
+│   │   │   ├── rfm.py           # RFM customer segmentation
+│   │   │   ├── seasonality.py   # Seasonal context generation
+│   │   │   └── ai_insights.py   # Gemini business insights
+│   │   └── reporter/
+│   │       └── llm_narrator.py  # WhatsApp report generation
 │   ├── tasks/
-│   │   ├── celery_app.py    # Celery + beat schedule
-│   │   ├── process_upload.py
-│   │   └── send_reports.py
-│   ├── db/
-│   │   └── neon_client.py   # Async SQLAlchemy session
-│   ├── tests/
-│   │   ├── conftest.py           # Synthetic fixtures (no real data)
-│   │   ├── test_parsers.py       # XML + Excel parsing (36 tests)
-│   │   ├── test_analytics.py     # Metrics + anomaly (40 tests)
-│   │   └── test_routers.py       # All API endpoints (46 tests)
-│   ├── auth.py              # JWT middleware (PyJWT HS256)
-│   ├── config.py            # Pydantic Settings
-│   ├── main.py              # FastAPI app + CORS + rate limiting
-│   └── requirements.txt
-└── 🌐 frontend/             # Next.js 15 (coming soon)
+│   │   └── process_upload.py    # Full analysis pipeline
+│   ├── tests/                   # 122 pytest tests
+│   └── config.py                # Settings via pydantic-settings
+│
+└── frontend/
+    ├── app/
+    │   ├── page.tsx                    # Public landing page
+    │   ├── (auth)/login/               # Google sign-in
+    │   ├── (dashboard)/
+    │   │   ├── dashboard/              # Authenticated home with charts
+    │   │   ├── upload/                 # Drag-and-drop file upload
+    │   │   ├── analysis/[id]/          # Full business dashboard
+    │   │   ├── reports/                # Upload history list
+    │   │   ├── alerts/                 # Anomaly alerts
+    │   │   └── settings/               # Profile + WhatsApp preferences
+    │   └── (ca)/                       # CA firm portal
+    ├── components/
+    │   ├── layout/                     # AppShell, Sidebar, TopBar, MobileNav
+    │   └── dashboard/                  # MetricCard, RevenueChart
+    └── lib/
+        ├── api/                        # React Query hooks
+        └── types.ts                    # TypeScript interfaces
 ```
 
 ---
 
-## 🔌 API Endpoints
-
-### 🔐 Auth
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/v1/auth/sync` | Upsert user after Google OAuth |
-| `GET` | `/api/v1/auth/me` | Get current user profile |
-| `PUT` | `/api/v1/auth/profile` | Update language / phone / WhatsApp |
-| `DELETE` | `/api/v1/auth/account` | Permanent account deletion |
-
-### 📤 Upload
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/v1/upload` | Upload Tally XML or Excel file |
-| `GET` | `/api/v1/upload/{id}/status` | Poll processing status |
-
-### 📊 Analysis
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/v1/analysis/{id}` | Full analysis bundle |
-| `GET` | `/api/v1/analysis/{id}/metrics` | Revenue, products, dead stock |
-| `GET` | `/api/v1/analysis/{id}/anomalies` | Anomalies (`?severity=HIGH`) |
-| `GET` | `/api/v1/analysis/{id}/customers` | RFM customer segments |
-| `GET` | `/api/v1/analysis/history/list` | Paginated history |
-
-### 📝 Reports
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/v1/reports/generate` | Generate LLM report (5/day) |
-| `GET` | `/api/v1/reports` | List all reports |
-| `GET` | `/api/v1/reports/{id}` | Get report content |
-| `POST` | `/api/v1/reports/{id}/send` | Send to WhatsApp |
-
-### 💬 WhatsApp
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/v1/whatsapp/webhook` | Meta hub.challenge verification |
-| `POST` | `/api/v1/whatsapp/webhook` | Receive inbound messages |
-| `POST` | `/api/v1/whatsapp/optin` | Opt-in for WhatsApp reports |
-
-### 🏢 CA Firm
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/v1/ca/dashboard` | Portfolio stats |
-| `GET` | `/api/v1/ca/clients` | List clients |
-| `POST` | `/api/v1/ca/clients` | Add client |
-| `GET` | `/api/v1/ca/clients/{id}` | Client detail |
-| `PUT` | `/api/v1/ca/clients/{id}` | Update client |
-| `DELETE` | `/api/v1/ca/clients/{id}` | Soft delete |
-| `GET` | `/api/v1/ca/clients/{id}/uploads` | Upload history |
-
----
-
-## ⚡ Quick Start
-
-### Prerequisites
-- Python 3.12+
-- Node.js 20+
-- A Neon Postgres database
-- Upstash Redis instance
-
-### 1. Clone & setup backend
+## Running Tests
 
 ```bash
-git clone https://github.com/AkshitGarg24/munim.git
-cd munim/backend
+cd backend
+source venv/bin/activate
 
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### 2. Configure environment
-
-```bash
-cp .env.example .env
-```
-
-```env
-# Required
-DATABASE_URL=postgresql+asyncpg://user:pass@host/db
-NEXTAUTH_SECRET=your-32-char-secret
-GOOGLE_API_KEY=your-gemini-key
-
-# Optional (WhatsApp)
-WHATSAPP_VERIFY_TOKEN=your-webhook-verify-token
-WHATSAPP_ACCESS_TOKEN=your-meta-access-token
-WHATSAPP_PHONE_NUMBER_ID=your-phone-number-id
-
-# Optional (File Storage)
-R2_BUCKET_NAME=munim-uploads
-R2_ACCOUNT_ID=your-cf-account-id
-R2_ACCESS_KEY_ID=your-r2-key
-R2_SECRET_ACCESS_KEY=your-r2-secret
-
-# Optional (Celery)
-CELERY_BROKER_URL=rediss://default:pass@host:port
-CELERY_RESULT_BACKEND=rediss://default:pass@host:port
-```
-
-### 3. Run the backend
-
-```bash
-uvicorn main:app --reload --port 8000
-```
-
-API docs at → http://localhost:8000/docs
-
-### 4. Run tests
-
-```bash
-pytest tests/ -v
+pytest tests/ -q                       # Quick summary — 122 tests
+pytest tests/ -v                       # Verbose with test names
+pytest tests/test_metrics.py -v        # Revenue + analytics
+pytest tests/test_anomaly.py -v        # Anomaly detection
+pytest tests/test_tally_parser.py -v   # Tally XML parser
 ```
 
 ---
 
-## 🧪 Test Coverage
-
-```
-Module                      Tests   Status
-──────────────────────────────────────────
-test_parsers.py               36    ✅ PASS
-test_analytics.py             40    ✅ PASS
-test_routers.py               46    ✅ PASS
-──────────────────────────────────────────
-Total                        122    ✅ ALL GREEN
-
-Coverage areas:
-  ████████████████████ Auth endpoints          (9 tests)
-  ████████████████████ Analysis endpoints      (8 tests)
-  ████████████████████ Reports endpoints       (8 tests)
-  ████████████████████ WhatsApp endpoints      (8 tests)
-  ████████████████████ CA firm endpoints      (10 tests)
-  ████████████████████ Tally XML parsing      (18 tests)
-  ████████████████████ Excel parsing          (18 tests)
-  ████████████████████ Metrics & analytics    (40 tests)
-```
-
----
-
-## 🔒 Security
-
-| Area | Implementation |
-|------|----------------|
-| **JWT Auth** | PyJWT HS256 with explicit algorithm allowlist — prevents algorithm confusion attacks |
-| **No python-jose** | Removed (CVE-2024-33663, CVE-2024-33664) — replaced with PyJWT 2.10.1 |
-| **WebHook HMAC** | X-Hub-Signature-256 verified with `hmac.compare_digest` (constant-time) |
-| **Phone Privacy** | Phone numbers SHA-256 hashed in logs — never stored in plaintext in logs |
-| **LLM Safety** | LLM receives only pre-computed summaries — never raw financial data |
-| **Error Messages** | Internal errors sanitised — no DB strings, file paths, or stack traces to users |
-| **File Uploads** | Magic bytes validation + size limits (50 MB) — MIME spoofing blocked |
-| **CORS** | Allowlist-based — only configured origins allowed |
-| **Rate Limiting** | Slowapi: 5 report generations/day, 60 webhook events/minute |
-| **SQL Injection** | All queries use parameterised statements — no f-string SQL |
-| **Bandit Scan** | 0 issues on all source files |
-
----
-
-## 🤖 LLM Narrator Rules
-
-The Gemini 2.0 Flash narrator follows strict rules to stay accurate and trustworthy:
-
-```
-✅  Only receives pre-computed analytics summaries (never raw data)
-✅  All numbers validated against pre-computed metrics post-generation
-✅  15-second timeout with template fallback
-✅  Max 300 words per report
-✅  Amounts always in Indian format: ₹1,24,300
-✅  Never makes up data not in the input JSON
-✅  Financial figures redacted in logs (privacy)
-✅  Supports Hindi, English, and Hinglish
-```
-
----
-
-## 📈 Roadmap
-
-| Phase | Status | Description |
-|-------|--------|-------------|
-| **Phase 1** | ✅ Done | Tally XML + Excel parsers, analytics engine, anomaly detection |
-| **Phase 2** | ✅ Done | All API routers, Celery tasks, LLM narrator, WhatsApp integration |
-| **Phase 3** | 🔨 Building | Next.js frontend — dashboard, upload UI, report viewer |
-| **Phase 4** | 📋 Planned | LangGraph Q&A agent — conversational queries over your data |
-| **Phase 5** | 📋 Planned | Multi-language support (Tamil, Telugu, Marathi) |
-
----
-
-## 🧠 Key Design Decisions
-
-**Why Gemini 2.0 Flash (not GPT-4)?**
-Free tier: 15 RPM, 1M tokens/day. Perfect for MVP without a billing surprise.
-
-**Why Celery + Redis (not cron)?**
-Beat scheduler handles both weekly Monday 8 AM reports and monthly 1st-of-month reports, with retry logic on worker crash.
-
-**Why PyJWT (not python-jose)?**
-python-jose has two unfixed CVEs (algorithm confusion attacks). PyJWT 2.10.1 with explicit `algorithms=["HS256"]` is the secure replacement.
-
-**Why pre-compute analytics before LLM?**
-LLMs hallucinate. By computing all numbers first and passing only summaries, every figure in the WhatsApp message is validated against the actual database values.
-
----
-
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
-2. Create your feature branch: `git checkout -b feature/my-feature`
-3. Run tests: `pytest tests/ -v`
-4. Run security scan: `bandit -r . --exclude tests/`
-5. Submit a pull request
+2. Create a feature branch: `git checkout -b feat/your-feature`
+3. Make changes and run tests: `pytest tests/ -q`
+4. Commit: `git commit -m "feat: description"`
+5. Open a pull request
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE) for details.
 
 ---
 
 <div align="center">
 
-Made with ❤️ for Indian small businesses
+Built with ❤️ for Indian businesses
 
-**मुनीम — आपका digital मुनीम** 🙏
+*मुनीम — आपका भरोसेमंद डिजिटल हिसाबकिताब*
 
 </div>

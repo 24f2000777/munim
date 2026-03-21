@@ -232,7 +232,7 @@ def _call_gemini_with_fallback(
         try:
             client = _get_client()
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-flash-latest",
                 contents=f"{system_prompt}\n\n{user_prompt}",
                 config=genai_types.GenerateContentConfig(
                     max_output_tokens=600,

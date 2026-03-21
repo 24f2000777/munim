@@ -27,6 +27,28 @@ TWO_PLACES = Decimal("0.01")
 DEAD_STOCK_DAYS = 14   # Per spec: no sales > 14 days = dead stock
 
 
+def _detect_period_days(df: pd.DataFrame) -> int:
+    """
+    Auto-detect the comparison window size based on data span.
+
+    - Data ≤ 14 days  → compare last 7 days vs previous 7 days
+    - Data 15–90 days → compare last 30 days vs previous 30 days
+    - Data > 90 days  → compare last 90 days vs previous 90 days
+
+    This ensures the analysis is meaningful regardless of whether someone
+    uploads a week's invoices or 2 years of full accounts.
+    """
+    if df.empty or "date" not in df.columns:
+        return 7
+    span_days = (df["date"].max() - df["date"].min()).days
+    if span_days <= 14:
+        return 7
+    elif span_days <= 90:
+        return 30
+    else:
+        return 90
+
+
 # ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
@@ -110,22 +132,23 @@ def compute_metrics(
     # Work only with positive amounts (exclude returns for main KPIs)
     sales_df = df[df["amount"].apply(lambda x: isinstance(x, Decimal) and x > Decimal(0))].copy()
 
-    # Define periods
-    week_start = reference_date - pd.Timedelta(days=6)
-    prev_week_start = week_start - pd.Timedelta(days=7)
-    prev_week_end = week_start - pd.Timedelta(days=1)
+    # Auto-detect comparison window based on data span
+    period_days = _detect_period_days(df)
+    period_start = reference_date - pd.Timedelta(days=period_days - 1)
+    prev_period_start = period_start - pd.Timedelta(days=period_days)
+    prev_period_end = period_start - pd.Timedelta(days=1)
 
-    current_week = sales_df[sales_df["date"].between(week_start, reference_date)]
-    previous_week = sales_df[sales_df["date"].between(prev_week_start, prev_week_end)]
+    current_period = sales_df[sales_df["date"].between(period_start, reference_date)]
+    previous_period = sales_df[sales_df["date"].between(prev_period_start, prev_period_end)]
 
-    revenue = _compute_revenue(current_week, previous_week, reference_date)
-    top_products = _compute_top_products(current_week, previous_week)
-    dead_stock = _compute_dead_stock(sales_df, reference_date)
-    customer_split = _compute_customer_split(sales_df, current_week, reference_date)
+    revenue = _compute_revenue(current_period, previous_period, reference_date, period_days)
+    top_products = _compute_top_products(current_period, previous_period)
+    dead_stock = _compute_dead_stock(sales_df, reference_date, period_days)
+    customer_split = _compute_customer_split(sales_df, current_period, reference_date, period_days)
 
     logger.info(
-        "Metrics computed | period: %s→%s | revenue: ₹%s | top_products: %d | dead_stock: %d",
-        week_start.date(), reference_date.date(),
+        "Metrics computed | period: %s→%s (%dd window) | revenue: ₹%s | products: %d | dead_stock: %d",
+        period_start.date(), reference_date.date(), period_days,
         revenue.current_period, len(top_products), len(dead_stock),
     )
 
@@ -134,7 +157,7 @@ def compute_metrics(
         top_products=top_products,
         dead_stock=dead_stock,
         customer_split=customer_split,
-        period_start=week_start,
+        period_start=period_start,
         period_end=reference_date,
     )
 
@@ -147,8 +170,9 @@ def _compute_revenue(
     current: pd.DataFrame,
     previous: pd.DataFrame,
     reference_date: pd.Timestamp,
+    period_days: int = 7,
 ) -> RevenueMetric:
-    """Metric 1: Revenue this week vs last week."""
+    """Metric 1: Revenue this period vs previous period (adaptive window)."""
     current_total = _sum_amount(current)
     previous_total = _sum_amount(previous)
 
@@ -166,13 +190,20 @@ def _compute_revenue(
         else:
             trend = "flat"
 
+    if period_days <= 7:
+        label = "This week vs last week"
+    elif period_days <= 30:
+        label = "This month vs last month"
+    else:
+        label = "This quarter vs last quarter"
+
     return RevenueMetric(
         current_period=current_total.quantize(TWO_PLACES),
         previous_period=previous_total.quantize(TWO_PLACES),
         change_amount=change_amount.quantize(TWO_PLACES),
         change_pct=change_pct,
         trend=trend,
-        period_label="This week vs last week",
+        period_label=label,
     )
 
 
@@ -235,6 +266,7 @@ def _compute_top_products(
 def _compute_dead_stock(
     df: pd.DataFrame,
     reference_date: pd.Timestamp,
+    period_days: int = 7,
 ) -> list[DeadStockItem]:
     """
     Metric 3 (partial): Products with zero sales in the last DEAD_STOCK_DAYS days.
@@ -266,16 +298,17 @@ def _compute_dead_stock(
 
 def _compute_customer_split(
     all_df: pd.DataFrame,
-    current_week: pd.DataFrame,
+    current_period: pd.DataFrame,
     reference_date: pd.Timestamp,
+    period_days: int = 7,
 ) -> CustomerSplit:
     """
-    Metric 5: New vs repeat customer split in the current week.
+    Metric 5: New vs repeat customer split in the current period.
 
-    New = customer's first-ever purchase falls within current week.
-    Repeat = customer has purchased before the current week.
+    New = customer's first-ever purchase falls within current period.
+    Repeat = customer has purchased before the current period.
     """
-    if current_week.empty:
+    if current_period.empty:
         return CustomerSplit(
             new_customers=0,
             repeat_customers=0,
@@ -284,16 +317,16 @@ def _compute_customer_split(
             new_revenue_pct=Decimal(0),
         )
 
-    week_start = reference_date - pd.Timedelta(days=6)
+    period_start = reference_date - pd.Timedelta(days=period_days - 1)
 
     # First purchase date per customer (across all history)
     first_purchase = all_df.groupby("customer")["date"].min()
 
-    current_customers = current_week["customer"].unique()
+    current_customers = current_period["customer"].unique()
 
     new_customers_list = [
         c for c in current_customers
-        if first_purchase.get(c, pd.NaT) >= week_start
+        if first_purchase.get(c, pd.NaT) >= period_start
     ]
     repeat_customers_list = [
         c for c in current_customers
@@ -301,10 +334,10 @@ def _compute_customer_split(
     ]
 
     new_revenue = _sum_amount(
-        current_week[current_week["customer"].isin(new_customers_list)]
+        current_period[current_period["customer"].isin(new_customers_list)]
     )
     repeat_revenue = _sum_amount(
-        current_week[current_week["customer"].isin(repeat_customers_list)]
+        current_period[current_period["customer"].isin(repeat_customers_list)]
     )
     total_revenue = new_revenue + repeat_revenue
 
