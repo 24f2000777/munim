@@ -139,26 +139,46 @@ async def receive_twilio_webhook(
     from_number = str(form.get("From", "")).replace("whatsapp:", "")
     text_body = str(form.get("Body", "")).strip()
     msg_id = str(form.get("MessageSid", ""))
+    num_media = int(form.get("NumMedia", "0") or "0")
 
-    if not from_number or not text_body:
+    if not from_number:
         return {"status": "ok"}
 
     import hashlib
     phone_hash = hashlib.sha256(from_number.encode()).hexdigest()[:12]
-    logger.info("Twilio inbound from %s...: %r", phone_hash, text_body[:60])
+    logger.info("Twilio inbound from %s...: media=%d text=%r", phone_hash, num_media, text_body[:60])
 
     # Normalize phone — ensure E.164
     phone = f"+{from_number}" if not from_number.startswith("+") else from_number
 
     # Look up user by phone
     result = await db.execute(
-        text("SELECT id::text FROM users WHERE phone = :phone"),
+        text("SELECT id::text, name FROM users WHERE phone = :phone"),
         {"phone": phone},
     )
     user_row = result.fetchone()
     user_id = user_row.id if user_row else None
 
-    # Detect intent for logging
+    # --- File received? Run full analysis ---
+    if num_media > 0:
+        media_url = str(form.get("MediaUrl0", ""))
+        media_type = str(form.get("MediaContentType0", ""))
+        filename = _guess_filename_from_content_type(media_type, text_body)
+
+        await _handle_twilio_file(
+            phone=phone,
+            user_id=user_id,
+            media_url=media_url,
+            media_type=media_type,
+            filename=filename,
+            db=db,
+        )
+        return {"status": "ok"}
+
+    # --- Text message: run chatbot ---
+    if not text_body:
+        return {"status": "ok"}
+
     intent = _detect_intent(text_body)
 
     # Store inbound record
@@ -189,7 +209,6 @@ async def receive_twilio_webhook(
         except Exception:
             pass
 
-    # Build and send response using the same chatbot logic
     await _respond_to_message(
         from_number=phone,
         text_body=text_body,
@@ -197,8 +216,274 @@ async def receive_twilio_webhook(
         db=db,
     )
 
-    # Twilio expects empty 200 (not TwiML) when we send via API
     return {"status": "ok"}
+
+
+def _guess_filename_from_content_type(content_type: str, caption: str = "") -> str:
+    """Guess a filename from Twilio's MediaContentType."""
+    ext_map = {
+        "text/csv": "data.csv",
+        "application/vnd.ms-excel": "data.xls",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "data.xlsx",
+        "text/xml": "data.xml",
+        "application/xml": "data.xml",
+        "image/jpeg": "photo.jpg",
+        "image/png": "photo.png",
+        "application/octet-stream": "data.csv",  # WhatsApp often sends CSV as octet-stream
+    }
+    # If caption has a filename hint, use it
+    if caption:
+        for ext in (".csv", ".xlsx", ".xls", ".xml", ".jpg", ".jpeg", ".png"):
+            if caption.lower().endswith(ext):
+                return caption.strip()
+    return ext_map.get(content_type, "data.csv")
+
+
+async def _handle_twilio_file(
+    phone: str,
+    user_id: str | None,
+    media_url: str,
+    media_type: str,
+    filename: str,
+    db: AsyncSession,
+) -> None:
+    """
+    Download a file sent via WhatsApp, run full analytics pipeline,
+    and send a summary report back to the user.
+    """
+    import asyncio
+    import httpx
+    from services.whatsapp.sender import send_whatsapp_sync
+
+    # Acknowledge immediately so user knows we received it
+    try:
+        await asyncio.to_thread(
+            send_whatsapp_sync, phone,
+            f"📂 File मिल गया! *{filename}*\n\nAnalysis हो रहा है... 30-60 seconds लगेंगे। ⏳"
+        )
+    except Exception:
+        pass
+
+    # Register/find user — if not registered, create a temporary guest record
+    if not user_id:
+        try:
+            result = await db.execute(
+                text("""
+                    INSERT INTO users (email, name, phone, whatsapp_opted_in, user_type)
+                    VALUES (:email, 'WhatsApp User', :phone, TRUE, 'individual')
+                    ON CONFLICT (email) DO UPDATE SET phone = :phone
+                    RETURNING id::text
+                """),
+                {"email": f"wa_{phone.replace('+','')}@whatsapp.munim", "phone": phone},
+            )
+            row = result.fetchone()
+            user_id = row.id if row else None
+            await db.commit()
+        except Exception as exc:
+            logger.warning("Could not create guest user for WhatsApp file: %s", exc)
+
+    # Download file from Twilio (requires Basic Auth with Twilio credentials)
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN:
+                response = await client.get(
+                    media_url,
+                    auth=(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN),
+                )
+            else:
+                response = await client.get(media_url)
+        response.raise_for_status()
+        file_bytes = response.content
+    except Exception as exc:
+        logger.error("Failed to download Twilio media: %s", exc)
+        await asyncio.to_thread(
+            send_whatsapp_sync, phone,
+            "❌ File download नहीं हो पाया। Please दोबारा try करें।"
+        )
+        return
+
+    logger.info("Downloaded file: %s (%d bytes, type=%s)", filename, len(file_bytes), media_type)
+
+    # Run full analytics pipeline in thread (sync code)
+    try:
+        analysis_summary = await asyncio.to_thread(
+            _run_whatsapp_file_analysis,
+            file_bytes=file_bytes,
+            filename=filename,
+            user_id=user_id,
+        )
+    except ValueError as exc:
+        await asyncio.to_thread(
+            send_whatsapp_sync, phone,
+            f"❌ *File analyze नहीं हो पाई*\n\n{exc}\n\nKripaya CSV, Excel, या Tally XML file भेजें।"
+        )
+        return
+    except Exception as exc:
+        logger.error("WhatsApp file analysis failed: %s", exc, exc_info=True)
+        await asyncio.to_thread(
+            send_whatsapp_sync, phone,
+            "❌ Analysis में error आई। Please file check करके दोबारा भेजें।"
+        )
+        return
+
+    # Send the analysis report
+    try:
+        await asyncio.to_thread(send_whatsapp_sync, phone, analysis_summary)
+    except Exception as exc:
+        logger.error("Failed to send analysis report: %s", exc)
+
+
+def _run_whatsapp_file_analysis(file_bytes: bytes, filename: str, user_id: str | None) -> str:
+    """
+    Synchronous: run full analytics pipeline on file bytes and return
+    a formatted WhatsApp summary message.
+    Raises ValueError for bad files.
+    """
+    from services.ingestor.schema_detector import detect_and_parse
+    from services.cleaner.deduplicator import deduplicate_products
+    from services.cleaner.normaliser import normalise
+    from services.cleaner.health_scorer import compute_health_score
+    from services.analytics.metrics import compute_metrics
+    from services.analytics.anomaly import detect_anomalies
+    from services.analytics.rfm import compute_rfm
+
+    # Parse
+    parsed = detect_and_parse(file_bytes, filename)
+    df, _ = deduplicate_products(parsed.df)
+    df, _ = normalise(df)
+    health = compute_health_score(df)
+
+    if not health.can_analyze:
+        raise ValueError(
+            f"Data quality score बहुत कम है ({health.score}/100)। "
+            "File में valid date, amount, और product columns होने चाहिए।"
+        )
+
+    # Analytics
+    metrics = compute_metrics(df)
+    anomaly_report = detect_anomalies(df)
+    customer_segments = compute_rfm(df)
+
+    # Store results if user_id known
+    if user_id:
+        try:
+            import uuid, json
+            from sqlalchemy import create_engine, text as sql_text
+            from config import settings as cfg
+            sync_url = cfg.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+            if "?" in sync_url:
+                sync_url = sync_url.split("?")[0]
+            engine = create_engine(sync_url, pool_pre_ping=True, connect_args={"sslmode": "require"})
+
+            def _float(v):
+                try: return float(v)
+                except: return 0.0
+
+            serialized_metrics = {
+                "current_revenue": _float(metrics.revenue.current),
+                "previous_revenue": _float(metrics.revenue.previous),
+                "change_pct": _float(metrics.revenue.change_pct) if metrics.revenue.change_pct else None,
+                "trend": metrics.revenue.trend,
+                "top_products": [
+                    {"name": p.name, "revenue": _float(p.revenue), "quantity": _float(p.quantity)}
+                    for p in (metrics.top_products or [])[:5]
+                ],
+                "dead_stock": [{"name": p.name} for p in (metrics.dead_stock or [])[:5]],
+            }
+
+            serialized_anomalies = {
+                "total": anomaly_report.total,
+                "high_count": anomaly_report.high_count,
+                "anomalies": [
+                    {"title": a.title, "severity": a.severity,
+                     "explanation": a.explanation, "action": a.action}
+                    for a in (anomaly_report.anomalies or [])[:10]
+                ],
+            }
+
+            total_customers = len(customer_segments) if customer_segments else 0
+            seg_counts = {}
+            for seg in (customer_segments or []):
+                s = getattr(seg, 'segment', 'Unknown')
+                seg_counts[s] = seg_counts.get(s, 0) + 1
+
+            serialized_customers = {"total": total_customers, "segments": seg_counts}
+
+            upload_id = str(uuid.uuid4())
+            analysis_id = str(uuid.uuid4())
+
+            with engine.connect() as conn:
+                conn.execute(sql_text("""
+                    INSERT INTO uploads (id, user_id, file_name, file_path, file_type, file_size_bytes, status)
+                    VALUES (:id, :uid, :fname, :fpath, 'csv', :fsize, 'done')
+                """), {"id": upload_id, "uid": user_id, "fname": filename,
+                       "fpath": f"whatsapp/{upload_id}.csv", "fsize": len(file_bytes)})
+                conn.execute(sql_text("""
+                    INSERT INTO analysis_results (
+                        id, upload_id, user_id, period_start, period_end,
+                        metrics, anomalies, customers, seasonality_context
+                    ) VALUES (
+                        :id, :uid, :user_id,
+                        :pstart, :pend,
+                        :metrics::jsonb, :anomalies::jsonb, :customers::jsonb, '{}'::jsonb
+                    )
+                """), {
+                    "id": analysis_id, "uid": upload_id, "user_id": user_id,
+                    "pstart": metrics.period_start, "pend": metrics.period_end,
+                    "metrics": json.dumps(serialized_metrics),
+                    "anomalies": json.dumps(serialized_anomalies),
+                    "customers": json.dumps(serialized_customers),
+                })
+                conn.commit()
+        except Exception as exc:
+            logger.warning("Could not store WhatsApp file analysis in DB: %s", exc)
+
+    # Build WhatsApp summary message
+    rev = float(metrics.revenue.current or 0)
+    change = metrics.revenue.change_pct
+    trend = metrics.revenue.trend or ""
+    trend_emoji = "📈" if trend == "up" else ("📉" if trend == "down" else "➡️")
+    change_str = f"({float(change):+.1f}%)" if change is not None else ""
+
+    top_prods = metrics.top_products[:3] if metrics.top_products else []
+    prod_lines = "\n".join(
+        f"   {i+1}. {p.name} — ₹{float(p.revenue):,.0f}"
+        for i, p in enumerate(top_prods)
+    ) or "   N/A"
+
+    dead = metrics.dead_stock[:3] if metrics.dead_stock else []
+    dead_lines = "\n".join(f"   • {p.name}" for p in dead) if dead else "   कोई नहीं ✅"
+
+    total_cust = len(customer_segments) if customer_segments else 0
+    high_alerts = anomaly_report.high_count
+    period_start = str(metrics.period_start.date()) if metrics.period_start else "?"
+    period_end = str(metrics.period_end.date()) if metrics.period_end else "?"
+
+    msg = (
+        f"✅ *Analysis Complete!*\n"
+        f"📅 Period: {period_start} → {period_end}\n"
+        f"📊 Health Score: {health.score}/100 ({health.grade})\n\n"
+
+        f"💰 *Revenue*\n"
+        f"   ₹{rev:,.0f} {change_str} {trend_emoji}\n\n"
+
+        f"🏆 *Top Products*\n{prod_lines}\n\n"
+
+        f"👥 *Customers:* {total_cust}\n\n"
+
+        f"⚠️ *Alerts:* {high_alerts} high severity\n"
+    )
+
+    if high_alerts > 0 and anomaly_report.anomalies:
+        top_alert = anomaly_report.anomalies[0]
+        msg += f"   🔴 {top_alert.title}: {top_alert.explanation[:80]}\n"
+
+    if dead:
+        msg += f"\n🛑 *Dead Stock:*\n{dead_lines}\n"
+
+    msg += f"\n💡 Full details: *munim.app*\n— Munim (आपका digital मुनीम)"
+
+    return msg
 
 
 # ---------------------------------------------------------------------------
