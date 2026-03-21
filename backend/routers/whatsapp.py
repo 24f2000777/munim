@@ -159,20 +159,30 @@ async def receive_twilio_webhook(
     user_row = result.fetchone()
     user_id = user_row.id if user_row else None
 
-    # --- File received? Run full analysis ---
+    # --- File received? ---
     if num_media > 0:
-        media_url = str(form.get("MediaUrl0", ""))
         media_type = str(form.get("MediaContentType0", ""))
-        filename = _guess_filename_from_content_type(media_type, text_body)
-
-        await _handle_twilio_file(
-            phone=phone,
-            user_id=user_id,
-            media_url=media_url,
-            media_type=media_type,
-            filename=filename,
-            db=db,
-        )
+        # Images work in sandbox — process them via Gemini Vision
+        if media_type.startswith("image/"):
+            media_url = str(form.get("MediaUrl0", ""))
+            filename = _guess_filename_from_content_type(media_type, text_body)
+            await _handle_twilio_file(
+                phone=phone, user_id=user_id,
+                media_url=media_url, media_type=media_type,
+                filename=filename, db=db,
+            )
+        else:
+            # Twilio sandbox doesn't forward document files (CSV/Excel/Tally)
+            # Guide user to upload via web
+            import asyncio
+            from services.whatsapp.sender import send_whatsapp_sync
+            await asyncio.to_thread(
+                send_whatsapp_sync, phone,
+                "📂 File मिली! लेकिन WhatsApp sandbox पर CSV/Excel directly analyze नहीं हो सकती।\n\n"
+                "👇 *यहाँ upload करें — 30 seconds में analysis ready:*\n"
+                "*https://munim.app/upload*\n\n"
+                "या अपना ledger का photo भेजें — वो directly analyze हो जाएगा! 📸"
+            )
         return {"status": "ok"}
 
     # --- Text message: run chatbot ---
@@ -718,6 +728,10 @@ def _detect_intent(text: str) -> str:
     if any(w in lower for w in ("biki", "बिक्री", "kamai", "कमाई", "sales", "revenue", "income", "bikri", "kitna bika")):
         return "revenue_query"
 
+    # Upload data request
+    if any(w in lower for w in ("upload", "data bhejo", "data dalo", "file bhejo", "csv", "excel", "tally", "data upload")):
+        return "upload_link"
+
     # Report request
     if any(w in lower for w in ("report", "रिपोर्ट", "summary", "weekly", "monthly", "bhejo")):
         return "report"
@@ -862,6 +876,15 @@ async def _build_response(intent: str, analysis: dict | None, db: AsyncSession) 
         lines.append("\nFull alerts: munim.app/alerts")
         return "\n".join(lines)
 
+    elif intent == "upload_link":
+        return (
+            "📂 *Data Upload करें*\n\n"
+            "CSV, Excel, या Tally XML यहाँ upload करें:\n"
+            "👉 *https://munim.app/upload*\n\n"
+            "या अपने ledger की *photo भेजें* — Munim खुद analyze कर लेगा! 📸\n\n"
+            "Analysis में 30-60 seconds लगते हैं।"
+        )
+
     elif intent == "report":
         return (
             f"📊 *{owner_name} जी की Report*\n\n"
@@ -874,14 +897,16 @@ async def _build_response(intent: str, analysis: dict | None, db: AsyncSession) 
         return (
             "🙏 *नमस्ते! मैं Munim हूँ।*\n"
             "आपका AI business assistant। 🤖\n\n"
-            "*आप मुझसे पूछ सकते हैं:*\n\n"
-            "💰 *'aaj kitna hua?'* — आज की sales\n"
-            "📊 *'sales'* — revenue summary\n"
+            "*📸 Data भेजने के 2 तरीके:*\n"
+            "1. Ledger की *photo भेजें* — instant analysis!\n"
+            "2. *munim.app/upload* पर CSV/Excel upload करें\n\n"
+            "*💬 मुझसे पूछें:*\n"
+            "💰 *'sales'* — revenue summary\n"
             "🏆 *'best product'* — top seller\n"
             "⚠️ *'slow maal'* — dead stock\n"
-            "👥 *'customer'* — customer count\n"
+            "👥 *'customer'* — customer info\n"
             "🚨 *'alert'* — business problems\n"
-            "📋 *'report'* — full report link\n\n"
+            "📋 *'report'* — full report\n\n"
             "Website: *munim.app* 🚀"
         )
 
