@@ -121,6 +121,87 @@ async def receive_webhook(
 
 
 # ---------------------------------------------------------------------------
+# Twilio incoming webhook (form-encoded — different format from Meta)
+# ---------------------------------------------------------------------------
+
+@router.post("/twilio-webhook", status_code=status.HTTP_200_OK)
+async def receive_twilio_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """
+    Receive incoming WhatsApp messages from Twilio Sandbox.
+    Twilio sends form-encoded POST (not JSON like Meta).
+    Configure this URL in: Twilio Console → Messaging → Sandbox → "When a message comes in"
+    """
+    # Twilio sends form-encoded body
+    form = await request.form()
+    from_number = str(form.get("From", "")).replace("whatsapp:", "")
+    text_body = str(form.get("Body", "")).strip()
+    msg_id = str(form.get("MessageSid", ""))
+
+    if not from_number or not text_body:
+        return {"status": "ok"}
+
+    import hashlib
+    phone_hash = hashlib.sha256(from_number.encode()).hexdigest()[:12]
+    logger.info("Twilio inbound from %s...: %r", phone_hash, text_body[:60])
+
+    # Normalize phone — ensure E.164
+    phone = f"+{from_number}" if not from_number.startswith("+") else from_number
+
+    # Look up user by phone
+    result = await db.execute(
+        text("SELECT id::text FROM users WHERE phone = :phone"),
+        {"phone": phone},
+    )
+    user_row = result.fetchone()
+    user_id = user_row.id if user_row else None
+
+    # Detect intent for logging
+    intent = _detect_intent(text_body)
+
+    # Store inbound record
+    try:
+        await db.execute(
+            text("""
+                INSERT INTO wa_conversations (
+                    user_id, phone_number, direction, message_text,
+                    wa_message_id, intent_detected
+                ) VALUES (
+                    :user_id, :phone, 'inbound', :text, :wa_msg_id, :intent
+                )
+                ON CONFLICT (wa_message_id) DO NOTHING
+            """),
+            {
+                "user_id": user_id,
+                "phone": from_number,
+                "text": text_body[:2000],
+                "wa_msg_id": msg_id,
+                "intent": intent,
+            },
+        )
+        await db.commit()
+    except Exception as exc:
+        logger.warning("Failed to store Twilio inbound record: %s", exc)
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+
+    # Build and send response using the same chatbot logic
+    await _respond_to_message(
+        from_number=phone,
+        text_body=text_body,
+        user_id=user_id,
+        db=db,
+    )
+
+    # Twilio expects empty 200 (not TwiML) when we send via API
+    return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
 # Opt-in endpoint
 # ---------------------------------------------------------------------------
 
