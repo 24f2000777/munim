@@ -11,6 +11,8 @@ export const ACCEPTED_FILE_TYPES = {
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
   "application/xml":                                                   [".xml"],
   "text/xml":                                                          [".xml"],
+  "image/jpeg":                                                        [".jpg", ".jpeg"],
+  "image/png":                                                         [".png"],
 };
 
 export const SEGMENT_COLORS: Record<string, string> = {

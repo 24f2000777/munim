@@ -29,12 +29,6 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-function loadNotifPref(key: string, fallback: boolean): boolean {
-  if (typeof window === "undefined") return fallback;
-  const v = localStorage.getItem(key);
-  return v === null ? fallback : v === "true";
-}
-
 export default function SettingsPage() {
   const { data: session } = useSession();
   const { data: profile, isLoading: profileLoading } = useUserProfile();
@@ -44,17 +38,10 @@ export default function SettingsPage() {
   const [whatsapp, setWhatsapp] = useState(false);
   const [phone,    setPhone]    = useState("");
 
-  // Notification toggles — persisted in localStorage
+  // Notification toggles — persisted server-side
   const [notifAnalysis, setNotifAnalysis] = useState(true);
   const [notifAlerts,   setNotifAlerts]   = useState(true);
   const [notifWeekly,   setNotifWeekly]   = useState(false);
-
-  // Load notification prefs from localStorage on mount
-  useEffect(() => {
-    setNotifAnalysis(loadNotifPref("notif_analysis", true));
-    setNotifAlerts(loadNotifPref("notif_alerts", true));
-    setNotifWeekly(loadNotifPref("notif_weekly", false));
-  }, []);
 
   // Populate form from real profile data once loaded
   useEffect(() => {
@@ -63,6 +50,8 @@ export default function SettingsPage() {
       setWhatsapp(profile.whatsapp_opted_in ?? false);
       // Strip +91 prefix for display in the input
       setPhone((profile.phone ?? "").replace(/^\+91/, ""));
+      setNotifAlerts(profile.notify_on_anomaly ?? true);
+      setNotifWeekly(profile.notify_weekly ?? false);
     }
   }, [profile]);
 
@@ -77,6 +66,9 @@ export default function SettingsPage() {
         language_preference: language,
         phone:               whatsapp && phone.trim() ? `+91${phone.replace(/\D/g, "")}` : undefined,
         whatsapp_opted_in:   whatsapp,
+        notify_on_anomaly:   notifAlerts,
+        notify_weekly:       notifWeekly,
+        notify_monthly:      false,
       });
       toast.success("Settings saved successfully");
     } catch {
@@ -184,31 +176,19 @@ export default function SettingsPage() {
               label: "Analysis complete",
               desc:  "When file processing finishes",
               on:    notifAnalysis,
-              toggle: () => {
-                const next = !notifAnalysis;
-                setNotifAnalysis(next);
-                localStorage.setItem("notif_analysis", String(next));
-              },
+              toggle: () => setNotifAnalysis((v) => !v),
             },
             {
               label: "High severity alerts",
               desc:  "Critical anomalies detected",
               on:    notifAlerts,
-              toggle: () => {
-                const next = !notifAlerts;
-                setNotifAlerts(next);
-                localStorage.setItem("notif_alerts", String(next));
-              },
+              toggle: () => setNotifAlerts((v) => !v),
             },
             {
               label: "Weekly summary",
               desc:  "Summary every Monday morning",
               on:    notifWeekly,
-              toggle: () => {
-                const next = !notifWeekly;
-                setNotifWeekly(next);
-                localStorage.setItem("notif_weekly", String(next));
-              },
+              toggle: () => setNotifWeekly((v) => !v),
             },
           ].map((n, i) => (
             <div

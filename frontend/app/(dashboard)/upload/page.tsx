@@ -129,7 +129,7 @@ export default function UploadPage() {
       <div className="mb-6">
         <h1 className="page-title">Upload</h1>
         <p className="page-subtitle">
-          Tally XML, Excel or CSV — Munim handles the analysis automatically
+          CSV, Excel, Tally XML — या ledger की photo (JPG/PNG)
         </p>
       </div>
 
@@ -172,6 +172,7 @@ export default function UploadPage() {
                   { icon: FileText, label: "Tally XML", color: "text-orange-400" },
                   { icon: File,     label: "Excel",     color: "text-blue-400"   },
                   { icon: File,     label: "CSV",       color: "text-emerald-400"},
+                  { icon: File,     label: "JPG/PNG",   color: "text-purple-400" },
                 ].map((fmt) => (
                   <div key={fmt.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <fmt.icon className={`w-3.5 h-3.5 ${fmt.color}`} />
@@ -238,7 +239,7 @@ export default function UploadPage() {
             <div className="space-y-1.5">
               {[
                 ["Max size", "50 MB"],
-                ["Formats", "XML, XLSX, XLS, CSV"],
+                ["Formats", "XML, XLSX, XLS, CSV, JPG, PNG"],
                 ["Processing time", "10 to 30 seconds"],
               ].map(([label, val]) => (
                 <div key={label} className="flex items-center justify-between text-xs">

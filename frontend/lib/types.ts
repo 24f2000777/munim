@@ -168,4 +168,7 @@ export interface UserProfile {
   phone:               string | null;
   whatsapp_opted_in:   boolean;
   created_at:          string;
+  notify_on_anomaly?:  boolean;
+  notify_weekly?:      boolean;
+  notify_monthly?:     boolean;
 }

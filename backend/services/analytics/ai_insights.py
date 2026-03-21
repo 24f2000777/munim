@@ -14,7 +14,7 @@ from google import genai
 from config import settings
 
 logger = logging.getLogger(__name__)
-GEMINI_MODEL = "gemini-flash-latest"
+GEMINI_MODEL = "gemini-2.0-flash-lite"
 
 
 @dataclass

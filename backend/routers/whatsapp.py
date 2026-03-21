@@ -205,27 +205,54 @@ async def _handle_message(msg: dict, value: dict, db: AsyncSession) -> None:
     user_row = result.fetchone()
     user_id = user_row.id if user_row else None
 
-    # Store inbound conversation record
-    await db.execute(
-        text("""
-            INSERT INTO wa_conversations (
-                user_id, phone_number, direction, message_text,
-                wa_message_id
-            ) VALUES (
-                :user_id, :phone, 'inbound', :text, :wa_msg_id
-            )
-            ON CONFLICT (wa_message_id) DO NOTHING
-        """),
-        {
-            "user_id": user_id,
-            "phone": from_number,
-            "text": text_body[:2000],
-            "wa_msg_id": msg_id,
-        },
-    )
-    await db.commit()
+    # Detect intent early so we can log it on the inbound record too
+    intent = _detect_intent(text_body)
 
-    # Detect intent and respond
+    # Store inbound conversation record
+    try:
+        await db.execute(
+            text("""
+                INSERT INTO wa_conversations (
+                    user_id, phone_number, direction, message_text,
+                    wa_message_id, intent_detected
+                ) VALUES (
+                    :user_id, :phone, 'inbound', :text, :wa_msg_id, :intent
+                )
+                ON CONFLICT (wa_message_id) DO NOTHING
+            """),
+            {
+                "user_id": user_id,
+                "phone": from_number,
+                "text": text_body[:2000],
+                "wa_msg_id": msg_id,
+                "intent": intent,
+            },
+        )
+        await db.commit()
+    except Exception as exc:
+        logger.warning("Could not store intent_detected on inbound record: %s", exc)
+        # Fallback: insert without intent_detected column
+        await db.rollback()
+        await db.execute(
+            text("""
+                INSERT INTO wa_conversations (
+                    user_id, phone_number, direction, message_text,
+                    wa_message_id
+                ) VALUES (
+                    :user_id, :phone, 'inbound', :text, :wa_msg_id
+                )
+                ON CONFLICT (wa_message_id) DO NOTHING
+            """),
+            {
+                "user_id": user_id,
+                "phone": from_number,
+                "text": text_body[:2000],
+                "wa_msg_id": msg_id,
+            },
+        )
+        await db.commit()
+
+    # Respond to the message
     await _respond_to_message(
         from_number=from_number,
         text_body=text_body,
@@ -241,75 +268,263 @@ async def _respond_to_message(
     db: AsyncSession,
 ) -> None:
     """
-    Simple intent detection + response.
-    Full LangGraph Q&A engine will be wired in Phase 3.
+    Full 2-way chatbot: detects intent, fetches real DB data, sends response.
+    Supports Hindi + English queries. No LLM needed — all template-based (instant).
     """
-    lower = text_body.lower()
+    import asyncio
+    from services.whatsapp.sender import send_whatsapp_sync
 
-    # Basic intent detection
-    if any(w in lower for w in ("report", "रिपोर्ट", "summary", "weekly")):
+    intent = _detect_intent(text_body)
+    logger.info("WhatsApp intent detected: %s", intent)
+
+    if not user_id:
         response = (
-            "📊 आपकी latest report यहाँ देखें: munim.app/reports\n\n"
-            "या हमें type करें 'help' for more options."
+            "🙏 Munim पर register करें: munim.app\n"
+            "आपका business data track करने के लिए login करें।"
         )
-    elif any(w in lower for w in ("help", "मदद", "hi", "hello", "नमस्ते")):
-        response = (
-            "🙏 नमस्ते! मैं Munim हूँ — आपका AI business assistant.\n\n"
-            "आप मुझसे पूछ सकते हैं:\n"
-            "• 'report' — इस हफ्ते की report\n"
-            "• 'sales' — sales summary\n"
-            "• 'alerts' — latest alerts"
-        )
-    elif any(w in lower for w in ("sales", "revenue", "बिक्री")):
-        if user_id:
-            # Fetch last analysis
-            result = await db.execute(
-                text("""
-                    SELECT metrics->>'current_revenue' AS rev,
-                           metrics->>'trend' AS trend,
-                           period_end::text
-                    FROM analysis_results
-                    WHERE user_id = :uid
-                    ORDER BY created_at DESC LIMIT 1
-                """),
-                {"uid": user_id},
-            )
-            row = result.fetchone()
-            if row and row.rev:
-                response = (
-                    f"💰 आपकी last period revenue: ₹{float(row.rev):,.0f}\n"
-                    f"Trend: {row.trend or 'N/A'} (till {row.period_end})\n\n"
-                    "Full report के लिए: munim.app/reports"
-                )
-            else:
-                response = "अभी कोई data नहीं है। Please upload करें: munim.app"
-        else:
-            response = "Please पहले munim.app पर register करें। 🙏"
     else:
-        response = (
-            "मुझे समझ नहीं आया 🤔\n\n"
-            "Type करें:\n• 'report' — weekly report\n"
-            "• 'help' — सभी options\n• 'sales' — sales info"
+        # Fetch latest analysis data for this user (single query covers all intents)
+        analysis = await _fetch_latest_analysis(user_id, db)
+        response = await _build_response(intent, analysis, db)
+
+    # Send via WhatsApp (Twilio or Meta) — run sync sender in thread pool
+    phone = f"+{from_number}" if not from_number.startswith("+") else from_number
+    try:
+        await asyncio.to_thread(send_whatsapp_sync, phone, response)
+    except Exception as exc:
+        logger.error("Failed to send WhatsApp reply: %s", exc)
+        return
+
+    # Store outbound reply in wa_conversations
+    try:
+        await db.execute(
+            text("""
+                INSERT INTO wa_conversations (
+                    user_id, phone_number, direction, message_text,
+                    intent_detected, wa_message_id
+                ) VALUES (
+                    :uid, :phone, 'outbound', :text, :intent, :wa_id
+                )
+            """),
+            {
+                "uid": user_id,
+                "phone": from_number,
+                "text": response[:2000],
+                "intent": intent,
+                "wa_id": f"out_{from_number}_{int(__import__('time').time())}",
+            },
+        )
+        await db.commit()
+    except Exception as exc:
+        logger.warning("Could not store outbound reply in wa_conversations: %s", exc)
+        await db.rollback()
+
+
+def _detect_intent(text: str) -> str:
+    """
+    Detect user intent from Hindi/English message text.
+    Order matters — check most specific intents first.
+    """
+    # Normalize: lowercase + strip extra whitespace
+    lower = text.lower().strip()
+
+    # Today's revenue (more specific than general revenue)
+    if any(w in lower for w in ("aaj", "आज", "today", "kitna hua", "कितना हुआ", "aaj ka")):
+        return "revenue_today"
+
+    # Alerts / problems
+    if any(w in lower for w in ("alert", "dikkat", "समस्या", "problem", "gadbad", "परेशानी", "issue", "warning")):
+        return "alerts"
+
+    # Best product
+    if any(w in lower for w in ("best product", "sabse acha", "सबसे अच्छा", "top product", "sabse zyada")):
+        return "best_product"
+
+    # Slow/dead stock
+    if any(w in lower for w in ("slow", "nahi bik", "नहीं बिक", "dead stock", "kaun sa maal", "slow maal", "maal nahi")):
+        return "slow_stock"
+
+    # Customer count
+    if any(w in lower for w in ("customer", "graahaak", "ग्राहक", "kitne log", "buyers", "clients")):
+        return "customer_count"
+
+    # General revenue/sales
+    if any(w in lower for w in ("biki", "बिक्री", "kamai", "कमाई", "sales", "revenue", "income", "bikri", "kitna bika")):
+        return "revenue_query"
+
+    # Report request
+    if any(w in lower for w in ("report", "रिपोर्ट", "summary", "weekly", "monthly", "bhejo")):
+        return "report"
+
+    # Help / greeting
+    if any(w in lower for w in ("help", "मदद", "hi", "hello", "नमस्ते", "start", "menu", "kya kar", "options")):
+        return "help"
+
+    return "unknown"
+
+
+async def _fetch_latest_analysis(user_id: str, db: AsyncSession) -> dict | None:
+    """Single query to fetch all data needed for any intent response."""
+    result = await db.execute(
+        text("""
+            SELECT ar.metrics, ar.anomalies, ar.customers,
+                   ar.period_start::text, ar.period_end::text,
+                   u.name, u.language_preference
+            FROM analysis_results ar
+            JOIN users u ON u.id = ar.user_id
+            WHERE ar.user_id = :uid
+            ORDER BY ar.created_at DESC
+            LIMIT 1
+        """),
+        {"uid": user_id},
+    )
+    row = result.fetchone()
+    if not row:
+        return None
+    return {
+        "metrics": row.metrics or {},
+        "anomalies": row.anomalies or {},
+        "customers": row.customers or {},
+        "period_start": row.period_start,
+        "period_end": row.period_end,
+        "owner_name": row.name or "Business Owner",
+        "lang": row.language_preference or "hi",
+    }
+
+
+async def _build_response(intent: str, analysis: dict | None, db: AsyncSession) -> str:
+    """Build a response string for the detected intent using real DB data."""
+    if not analysis:
+        return (
+            "अभी कोई data नहीं है। 📁\n\n"
+            "Please अपना sales data upload करें: *munim.app*\n"
+            "CSV, Excel, या Tally XML सब चलेगा।"
         )
 
-    # Send response via WhatsApp API
-    if settings.WHATSAPP_PHONE_NUMBER_ID and settings.WHATSAPP_ACCESS_TOKEN:
-        import httpx
-        url = f"https://graph.facebook.com/v21.0/{settings.WHATSAPP_PHONE_NUMBER_ID}/messages"
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            await client.post(
-                url,
-                json={
-                    "messaging_product": "whatsapp",
-                    "to": from_number,
-                    "type": "text",
-                    "text": {"body": response},
-                },
-                headers={
-                    "Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}",
-                    "Content-Type": "application/json",
-                },
+    metrics = analysis["metrics"]
+    anomalies = analysis["anomalies"]
+    customers = analysis["customers"]
+    period_end = analysis["period_end"] or ""
+    owner_name = analysis["owner_name"]
+    lang = analysis["lang"]
+
+    if intent == "revenue_today":
+        from datetime import date as date_cls
+        today_str = str(date_cls.today())
+        if period_end and period_end[:10] == today_str:
+            rev = metrics.get("current_revenue", 0) or 0
+            trend = metrics.get("trend", "")
+            trend_emoji = "📈" if trend == "up" else ("📉" if trend == "down" else "➡️")
+            return (
+                f"💰 आज की revenue: *₹{float(rev):,.0f}*  {trend_emoji}\n"
+                f"Period: {analysis['period_start']} → {period_end}\n\n"
+                "Full analysis: munim.app"
             )
+        else:
+            return (
+                f"📅 आज का data नहीं है।\n"
+                f"Last upload: *{period_end[:10] if period_end else 'N/A'}* का था।\n\n"
+                "नया data upload करें: *munim.app*"
+            )
+
+    elif intent == "revenue_query":
+        rev = metrics.get("current_revenue", 0) or 0
+        change = metrics.get("change_pct") or metrics.get("revenue_change_pct") or 0
+        trend = metrics.get("trend", "")
+        trend_emoji = "📈" if trend == "up" else ("📉" if trend == "down" else "➡️")
+        change_str = f"({float(change):+.1f}%)" if change else ""
+        return (
+            f"💰 *{owner_name} जी*, आपकी revenue:\n\n"
+            f"*₹{float(rev):,.0f}* {change_str} {trend_emoji}\n"
+            f"Period: {period_end[:10] if period_end else 'N/A'} तक\n\n"
+            "Full report: munim.app/reports"
+        )
+
+    elif intent == "best_product":
+        top_products = metrics.get("top_products", [])
+        if top_products and isinstance(top_products[0], dict):
+            p = top_products[0]
+            name = p.get("name", "N/A")
+            rev = p.get("revenue", 0)
+            return (
+                f"🏆 *Best Product:*\n\n"
+                f"*{name}*\n"
+                f"Revenue: ₹{float(rev):,.0f}\n\n"
+                f"Top 3 products देखें: munim.app"
+            )
+        return "अभी product data नहीं है। Data upload करें: munim.app"
+
+    elif intent == "slow_stock":
+        dead_stock = metrics.get("dead_stock", [])
+        if not dead_stock:
+            return (
+                "✅ *सब products बिक रहे हैं!*\n\n"
+                f"कोई dead stock नहीं है। {period_end[:10] if period_end else ''} तक।"
+            )
+        lines = ["⚠️ *धीमे चल रहे products:*\n"]
+        for i, item in enumerate(dead_stock[:3], 1):
+            name = item.get("name", "?") if isinstance(item, dict) else str(item)
+            lines.append(f"{i}. {name}")
+        lines.append("\nFull analysis: munim.app")
+        return "\n".join(lines)
+
+    elif intent == "customer_count":
+        total = customers.get("total", 0)
+        segments = customers.get("segments", {})
+        champion = segments.get("Champion", 0)
+        at_risk = segments.get("At Risk", 0)
+        lost = segments.get("Lost", 0)
+        return (
+            f"👥 *Customers:*\n\n"
+            f"Total: *{total}*\n"
+            f"• Champions: {champion}\n"
+            f"• At Risk: {at_risk}\n"
+            f"• Lost: {lost}\n\n"
+            "Full segmentation: munim.app"
+        )
+
+    elif intent == "alerts":
+        anomaly_list = anomalies.get("anomalies", [])
+        high_medium = [a for a in anomaly_list if a.get("severity") in ("HIGH", "MEDIUM")]
+        if not high_medium:
+            return "✅ *कोई बड़ी problem नहीं है!*\n\nSab theek chal raha hai. 😊"
+        lines = [f"⚠️ *{len(high_medium)} Alerts:*\n"]
+        for i, a in enumerate(high_medium[:3], 1):
+            title = a.get("title", "Alert")
+            explanation = a.get("explanation", "")[:80]
+            lines.append(f"{i}. *{title}*\n   {explanation}")
+        lines.append("\nFull alerts: munim.app/alerts")
+        return "\n".join(lines)
+
+    elif intent == "report":
+        return (
+            f"📊 *{owner_name} जी की Report*\n\n"
+            "अपनी full report generate करने के लिए:\n"
+            "*munim.app* → Analysis → Generate Report\n\n"
+            "या type करें *'sales'* for quick summary."
+        )
+
+    elif intent == "help":
+        return (
+            "🙏 *नमस्ते! मैं Munim हूँ।*\n"
+            "आपका AI business assistant। 🤖\n\n"
+            "*आप मुझसे पूछ सकते हैं:*\n\n"
+            "💰 *'aaj kitna hua?'* — आज की sales\n"
+            "📊 *'sales'* — revenue summary\n"
+            "🏆 *'best product'* — top seller\n"
+            "⚠️ *'slow maal'* — dead stock\n"
+            "👥 *'customer'* — customer count\n"
+            "🚨 *'alert'* — business problems\n"
+            "📋 *'report'* — full report link\n\n"
+            "Website: *munim.app* 🚀"
+        )
+
+    else:  # unknown
+        return (
+            "मुझे समझ नहीं आया 🤔\n\n"
+            "Type करें *'help'* to see all options.\n\n"
+            "या website पर जाएं: *munim.app*"
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -87,6 +87,124 @@ def _get_file_bytes(file_path: str) -> bytes:
     return response["Body"].read()
 
 
+def _dispatch_anomaly_alert(engine, user_id: str, anomaly_report, owner_name: str) -> None:
+    """
+    Send an automatic WhatsApp alert when HIGH severity anomalies are detected.
+    Only sends if:
+    - User has whatsapp_opted_in = TRUE
+    - User has a phone number
+    - notify_on_anomaly = TRUE (defaults to TRUE if column not yet added)
+    Fast: uses template message only (no LLM call).
+    """
+    from services.whatsapp.sender import send_whatsapp_sync
+    import uuid
+
+    # Fetch user's WhatsApp preferences
+    with engine.connect() as conn:
+        try:
+            result = conn.execute(
+                text("""
+                    SELECT name, phone, language_preference,
+                           whatsapp_opted_in,
+                           COALESCE(notify_on_anomaly, TRUE) AS notify_on_anomaly
+                    FROM users WHERE id = :uid
+                """),
+                {"uid": user_id},
+            )
+        except Exception:
+            # notify_on_anomaly column not yet added — use simpler query
+            result = conn.execute(
+                text("""
+                    SELECT name, phone, language_preference, whatsapp_opted_in
+                    FROM users WHERE id = :uid
+                """),
+                {"uid": user_id},
+            )
+        user = result.fetchone()
+
+    if not user:
+        return
+    if not user.whatsapp_opted_in:
+        return
+    if not user.phone:
+        return
+    if hasattr(user, 'notify_on_anomaly') and not user.notify_on_anomaly:
+        return
+
+    # Build alert message from the top HIGH anomaly
+    top_anomalies = []
+    if hasattr(anomaly_report, 'anomalies'):
+        top_anomalies = [a for a in anomaly_report.anomalies if getattr(a, 'severity', '') == 'HIGH'][:2]
+
+    owner = user.name or "Business Owner"
+
+    if top_anomalies:
+        anomaly = top_anomalies[0]
+        title = getattr(anomaly, 'title', 'Business Alert')
+        explanation = getattr(anomaly, 'explanation', '')[:120]
+        action = getattr(anomaly, 'action', 'Please review your data.')
+
+        message = (
+            f"🚨 *{owner} जी — Business Alert!*\n\n"
+            f"⚠️ *{title}*\n"
+            f"{explanation}\n\n"
+            f"💡 क्या करें: {action}\n\n"
+            f"Full details: munim.app\n"
+            f"— Munim (आपका digital मुनीम)"
+        )
+        if len(top_anomalies) > 1:
+            message += f"\n\n_(और {len(top_anomalies) - 1} alerts हैं — munim.app पर देखें)_"
+    else:
+        message = (
+            f"🚨 *{owner} जी — Business Alert!*\n\n"
+            f"आपके नए data में HIGH severity issues मिले हैं।\n"
+            f"Full details देखें: munim.app\n\n"
+            f"— Munim"
+        )
+
+    # Send WhatsApp alert
+    try:
+        send_whatsapp_sync(user.phone, message)
+        logger.info("Anomaly alert sent to user %s", user_id[:8])
+    except RuntimeError:
+        logger.info("WhatsApp not configured — anomaly alert skipped")
+        return
+    except Exception as exc:
+        logger.warning("Failed to send anomaly alert: %s", exc)
+        return
+
+    # Store in reports table
+    # Need latest analysis_id
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("SELECT id::text FROM analysis_results WHERE upload_id = (SELECT id FROM uploads WHERE user_id = :uid ORDER BY created_at DESC LIMIT 1) LIMIT 1"),
+            {"uid": user_id},
+        )
+        analysis_row = result.fetchone()
+        analysis_id = analysis_row.id if analysis_row else None
+
+    if analysis_id:
+        with engine.connect() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO reports (
+                        analysis_id, user_id, report_type, language,
+                        content_hindi, content_english
+                    ) VALUES (
+                        :aid, :uid, 'alert', :lang, :content_hi, :content_en
+                    )
+                """),
+                {
+                    "aid": analysis_id,
+                    "uid": user_id,
+                    "lang": user.language_preference or "hi",
+                    "content_hi": message if (user.language_preference or "hi") in ("hi", "hinglish") else None,
+                    "content_en": message if user.language_preference == "en" else None,
+                },
+            )
+            conn.commit()
+
+
 def run_pipeline(upload_id: str) -> dict:
     """
     Core processing pipeline — runs the full analytics stack for an upload.
@@ -221,6 +339,19 @@ def run_pipeline(upload_id: str) -> dict:
                 {"id": upload_id},
             )
             conn.commit()
+
+        # --- 10. Auto-alert if HIGH anomalies detected ---
+        if anomaly_report.high_count > 0:
+            try:
+                _dispatch_anomaly_alert(
+                    engine=engine,
+                    user_id=str(upload.user_id),
+                    anomaly_report=anomaly_report,
+                    owner_name=str(getattr(upload, 'user_id', 'Unknown')),
+                )
+            except Exception as alert_exc:
+                # Never let alert dispatch break the main pipeline
+                logger.warning("Anomaly alert dispatch failed (non-critical): %s", alert_exc)
 
         logger.info(
             "Processing complete for upload: %s | health: %d | analysis_id: %s",

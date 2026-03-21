@@ -13,6 +13,9 @@ interface UpdateProfileParams {
   language_preference?: Language;
   phone?:              string;
   whatsapp_opted_in?:  boolean;
+  notify_on_anomaly?:  boolean;
+  notify_weekly?:      boolean;
+  notify_monthly?:     boolean;
 }
 
 export function useUpdateProfile() {

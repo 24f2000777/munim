@@ -136,7 +136,7 @@ async def generate_report_endpoint(
             RETURNING id::text, created_at::text
         """),
         {
-            "analysis_id": payload.analysis_id,
+            "analysis_id": row.id,  # use the actual analysis_results PK, not the upload_id sent by frontend
             "user_id": current_user.user_id,
             "report_type": payload.report_type,
             "language": payload.language,

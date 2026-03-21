@@ -164,12 +164,12 @@ async def upload_file(
     if file_type == "unknown":
         raise HTTPException(
             status_code=415,
-            detail="Unsupported format. Please upload Tally XML (.xml), Excel (.xlsx/.xls), or CSV (.csv).",
+            detail="Unsupported format. Please upload Tally XML (.xml), Excel (.xlsx/.xls), CSV (.csv), or a ledger photo (JPG/PNG).",
         )
 
     # --- Generate safe storage key ---
     upload_id = uuid.uuid4()
-    ext = {"tally_xml": "xml", "excel": "xlsx", "csv": "csv"}.get(file_type, "bin")
+    ext = {"tally_xml": "xml", "excel": "xlsx", "csv": "csv", "image": "jpg"}.get(file_type, "bin")
     r2_key = f"uploads/{user_id}/{upload_id}.{ext}"
 
     # --- Store file (R2 or local) ---
@@ -266,4 +266,5 @@ def _get_content_type(file_type: str) -> str:
         "tally_xml": "application/xml",
         "excel": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "csv": "text/csv",
+        "image": "image/jpeg",
     }.get(file_type, "application/octet-stream")

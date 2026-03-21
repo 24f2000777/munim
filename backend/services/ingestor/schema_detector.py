@@ -27,7 +27,7 @@ from services.ingestor.gemini_schema_detector import (
 
 logger = logging.getLogger(__name__)
 
-FileType = Literal["tally_xml", "excel", "csv", "unknown"]
+FileType = Literal["tally_xml", "excel", "csv", "image", "unknown"]
 
 
 @dataclass
@@ -70,10 +70,12 @@ def detect_and_parse(
         return _handle_excel(raw_bytes, filename)
     elif file_type == "csv":
         return _handle_csv(raw_bytes, filename)
+    elif file_type == "image":
+        return _handle_image(raw_bytes, filename)
     else:
         raise ValueError(
             f"Unsupported file type for {filename!r}. "
-            f"Accepted formats: Tally XML (.xml), Excel (.xlsx, .xls), CSV (.csv)"
+            f"Accepted formats: Tally XML (.xml), Excel (.xlsx, .xls), CSV (.csv), Image (.jpg, .jpeg, .png)"
         )
 
 
@@ -82,6 +84,12 @@ def _detect_file_type(raw_bytes: bytes, filename: str) -> FileType:
     Detect file type using magic bytes first, then extension fallback.
     Never trust filename alone — users rename files.
     """
+    # Image detection (check before CSV/Excel)
+    if raw_bytes[:3] == b"\xff\xd8\xff":
+        return "image"  # JPEG
+    if raw_bytes[:4] == b"\x89PNG":
+        return "image"  # PNG
+
     # Magic byte detection
     if raw_bytes[:5] in (b"<?xml", b"<ENVE", b"<TALL"):
         return "tally_xml"
@@ -235,6 +243,28 @@ def _handle_csv(raw_bytes: bytes, filename: str) -> ParsedFileResult:
             "gemini_confidence": gemini.confidence if gemini else 0.0,
         },
         business_type=business_type,
+    )
+
+
+def _handle_image(raw_bytes: bytes, filename: str) -> ParsedFileResult:
+    from services.ingestor.vision_extractor import extract_table_from_image
+    logger.info("Processing image file via Gemini Vision: %s", filename)
+    df = extract_table_from_image(raw_bytes, filename)
+    date_range = _get_date_range(df)
+
+    return ParsedFileResult(
+        df=df,
+        file_type="image",
+        company_name="",
+        detected_columns={
+            "date": "date", "amount": "amount",
+            "product": "product", "customer": "customer",
+        },
+        total_rows=len(df),
+        date_range=date_range,
+        warnings=["Data extracted from image via Gemini Vision — please verify figures"],
+        raw_metadata={"source": "gemini_vision", "filename": filename},
+        business_type="kirana",
     )
 
 

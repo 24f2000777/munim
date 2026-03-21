@@ -232,7 +232,7 @@ def _call_gemini_with_fallback(
         try:
             client = _get_client()
             response = client.models.generate_content(
-                model="gemini-flash-latest",
+                model="gemini-2.0-flash-lite",
                 contents=f"{system_prompt}\n\n{user_prompt}",
                 config=genai_types.GenerateContentConfig(
                     max_output_tokens=600,
@@ -265,9 +265,23 @@ def _template_fallback(owner_name: str, language: str, metrics: dict) -> str:
     Generate a basic template-based report when LLM is unavailable.
     Numbers come from pre-computed metrics — never fabricated.
     """
-    revenue = metrics.get("current_revenue_formatted", "N/A")
-    change = metrics.get("revenue_change_pct", 0)
-    top_product = metrics.get("top_product", "N/A")
+    # Support both pre-formatted keys (from _build_metrics_summary) and
+    # raw keys (from _serialize_metrics stored in DB)
+    revenue = metrics.get("current_revenue_formatted")
+    if not revenue:
+        from decimal import Decimal
+        raw = metrics.get("current_revenue", 0) or 0
+        revenue = format_inr(Decimal(str(raw))) if raw else "N/A"
+
+    change = metrics.get("revenue_change_pct") or metrics.get("change_pct") or 0
+
+    top_product = metrics.get("top_product")
+    if not top_product:
+        top_products = metrics.get("top_products", [])
+        if top_products and isinstance(top_products[0], dict):
+            top_product = top_products[0].get("name", "N/A")
+        else:
+            top_product = "N/A"
 
     if language == "hi":
         trend = "बढ़ी है 📈" if change > 0 else "घटी है ⚠️" if change < 0 else "स्थिर है"

@@ -58,6 +58,9 @@ class ProfileUpdateRequest(BaseModel):
     phone: Optional[str] = None
     language_preference: Optional[str] = None
     whatsapp_opted_in: Optional[bool] = None
+    notify_on_anomaly: Optional[bool] = None
+    notify_weekly: Optional[bool] = None
+    notify_monthly: Optional[bool] = None
 
     @field_validator("language_preference")
     @classmethod
@@ -88,6 +91,9 @@ class UserResponse(BaseModel):
     subscription_status: str
     avatar_url: Optional[str]
     created_at: str
+    notify_on_anomaly: bool
+    notify_weekly: bool
+    notify_monthly: bool
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +122,8 @@ async def sync_user(
                 id::text, email, name, phone, user_type,
                 language_preference, whatsapp_opted_in,
                 subscription_status, avatar_url,
-                created_at::text
+                created_at::text,
+                notify_on_anomaly, notify_weekly, notify_monthly
         """),
         {
             "email": payload.email,
@@ -141,7 +148,8 @@ async def get_me(
         text("""
             SELECT id::text, email, name, phone, user_type,
                    language_preference, whatsapp_opted_in,
-                   subscription_status, avatar_url, created_at::text
+                   subscription_status, avatar_url, created_at::text,
+                   notify_on_anomaly, notify_weekly, notify_monthly
             FROM users WHERE email = :email
         """),
         {"email": current_user.email},
@@ -175,7 +183,8 @@ async def update_profile(
             WHERE email = :email
             RETURNING id::text, email, name, phone, user_type,
                       language_preference, whatsapp_opted_in,
-                      subscription_status, avatar_url, created_at::text
+                      subscription_status, avatar_url, created_at::text,
+                      notify_on_anomaly, notify_weekly, notify_monthly
         """),
         updates,
     )
@@ -222,4 +231,7 @@ def _row_to_user(row) -> dict:
         "subscription_status": row.subscription_status,
         "avatar_url": row.avatar_url,
         "created_at": row.created_at,
+        "notify_on_anomaly": getattr(row, "notify_on_anomaly", True),
+        "notify_weekly": getattr(row, "notify_weekly", False),
+        "notify_monthly": getattr(row, "notify_monthly", False),
     }
