@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import {
   useAnalysisMetrics,
   useAnalysisAnomalies,
@@ -9,6 +9,9 @@ import {
 import { formatINR, formatDate, trendSymbol } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { apiClient } from "@/lib/api/client";
+import { useUserProfile } from "@/lib/api/user";
+import { toast } from "sonner";
 import {
   AreaChart,
   Area,
@@ -40,6 +43,11 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Upload,
+  MessageSquare,
+  X,
+  Send,
+  Globe,
+  Loader2,
 } from "lucide-react";
 import type { AiInsight, Anomaly } from "@/lib/types";
 
@@ -627,6 +635,216 @@ function DeadStockSection({ uploadId }: { uploadId: string }) {
   );
 }
 
+// ── Report Modal ──────────────────────────────────────────────────────────────
+
+type ReportStep = "idle" | "generating" | "preview" | "sending" | "sent";
+
+function ReportModal({
+  analysisId,
+  onClose,
+}: {
+  analysisId: string;
+  onClose: () => void;
+}) {
+  const { data: profile } = useUserProfile();
+  const [step,     setStep]     = useState<ReportStep>("idle");
+  const [language, setLanguage] = useState<"en" | "hi" | "hinglish">(
+    (profile?.language_preference as any) ?? "en"
+  );
+  const [phone,    setPhone]    = useState(
+    (profile?.phone ?? "").replace(/^\+91/, "")
+  );
+  const [reportId,  setReportId]  = useState("");
+  const [content,   setContent]   = useState("");
+  const [wasSent,   setWasSent]   = useState(false);
+
+  const LANGS = [
+    { value: "en",       label: "English"  },
+    { value: "hi",       label: "Hindi"    },
+    { value: "hinglish", label: "Hinglish" },
+  ] as const;
+
+  async function handleGenerate() {
+    setStep("generating");
+    try {
+      const res = await apiClient.post("/reports/generate", {
+        analysis_id: analysisId,
+        language,
+        report_type: "on_demand",
+      });
+      setReportId(res.data.report_id);
+      setContent(res.data.content);
+      setStep("preview");
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail ?? "Failed to generate report");
+      setStep("idle");
+    }
+  }
+
+  async function handleSend() {
+    if (!phone.trim()) { toast.error("Enter your WhatsApp number first"); return; }
+    setStep("sending");
+    try {
+      await apiClient.post(`/reports/${reportId}/send`, {
+        phone_number: `+91${phone.replace(/\D/g, "")}`,
+      });
+      setWasSent(true);
+      setStep("sent");
+      toast.success("WhatsApp report sent!");
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail ?? "Failed to send WhatsApp message");
+      setStep("preview");
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Modal */}
+      <div className="relative bg-card border border-border rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-green-500/15 rounded-xl flex items-center justify-center">
+              <MessageSquare className="w-4 h-4 text-green-400" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-foreground">WhatsApp Report</p>
+              <p className="text-xs text-muted-foreground">AI-written business summary</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl hover:bg-secondary flex items-center justify-center transition-colors">
+            <X className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+
+          {/* Step: idle — configure */}
+          {(step === "idle" || step === "generating") && (
+            <>
+              {/* Language */}
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5" /> Report Language
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {LANGS.map((l) => (
+                    <button
+                      key={l.value}
+                      onClick={() => setLanguage(l.value)}
+                      className={cn(
+                        "py-2.5 rounded-xl border text-sm font-semibold transition-all",
+                        language === l.value
+                          ? "border-orange-500 bg-orange-500/10 text-orange-400"
+                          : "border-border text-muted-foreground hover:border-orange-500/30"
+                      )}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Phone */}
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
+                  WhatsApp Number
+                </label>
+                <div className="flex">
+                  <span className="px-3 py-2.5 bg-secondary border border-border border-r-0 rounded-l-xl text-sm text-muted-foreground font-semibold">
+                    +91
+                  </span>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="98765 43210"
+                    className="input-field rounded-l-none flex-1 text-sm"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleGenerate}
+                disabled={step === "generating"}
+                className="btn-primary w-full justify-center py-3"
+              >
+                {step === "generating" ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating with AI...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Generate Report
+                  </>
+                )}
+              </button>
+            </>
+          )}
+
+          {/* Step: preview */}
+          {(step === "preview" || step === "sending" || step === "sent") && (
+            <>
+              <div className="bg-secondary/60 border border-border rounded-2xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2 h-2 rounded-full bg-green-400" />
+                  <span className="text-xs font-semibold text-green-400">Report generated</span>
+                  <span className="text-xs text-muted-foreground ml-auto capitalize">{language}</span>
+                </div>
+                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap font-mono">
+                  {content}
+                </p>
+              </div>
+
+              {step === "sent" ? (
+                <div className="flex items-center gap-3 bg-green-500/10 border border-green-500/20 rounded-2xl p-4">
+                  <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-green-400">Sent to WhatsApp!</p>
+                    <p className="text-xs text-muted-foreground">Check +91{phone} on WhatsApp</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex">
+                    <span className="px-3 py-2.5 bg-secondary border border-border border-r-0 rounded-l-xl text-sm text-muted-foreground font-semibold">
+                      +91
+                    </span>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="98765 43210"
+                      className="input-field rounded-l-none flex-1 text-sm"
+                    />
+                  </div>
+                  <button
+                    onClick={handleSend}
+                    disabled={step === "sending"}
+                    className="w-full inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white font-bold text-sm py-3 rounded-xl transition-colors"
+                  >
+                    {step === "sending" ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</>
+                    ) : (
+                      <><Send className="w-4 h-4" /> Send to WhatsApp</>
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 type Params = Promise<{ id: string }>;
@@ -634,6 +852,7 @@ type Params = Promise<{ id: string }>;
 export default function AnalysisPage({ params }: { params: Params }) {
   const { id: uploadId } = use(params);
   const { data: metrics, isLoading: metricsLoading } = useAnalysisMetrics(uploadId);
+  const [showReport, setShowReport] = useState(false);
 
   const isUp = metrics?.revenue?.trend === "up";
   const changeAccent = metrics
@@ -680,13 +899,22 @@ export default function AnalysisPage({ params }: { params: Params }) {
             </div>
           )}
         </div>
-        <Link
-          href="/reports"
-          className="inline-flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors flex-shrink-0"
+        <button
+          onClick={() => setShowReport(true)}
+          className="inline-flex items-center gap-1.5 bg-green-600 hover:bg-green-500 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors flex-shrink-0 shadow-lg shadow-green-500/20"
         >
-          Generate Report
-        </Link>
+          <MessageSquare className="w-3.5 h-3.5" />
+          Send WhatsApp Report
+        </button>
       </div>
+
+      {/* Report Modal */}
+      {showReport && (
+        <ReportModal
+          analysisId={uploadId}
+          onClose={() => setShowReport(false)}
+        />
+      )}
 
       {/* KPI Cards */}
       {metricsLoading ? (

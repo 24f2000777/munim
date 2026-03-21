@@ -81,7 +81,7 @@ async def generate_report_endpoint(
             detail="report_type must be weekly, monthly, alert, or on_demand",
         )
 
-    # Fetch analysis
+    # Fetch analysis — accepts either analysis_id or upload_id
     result = await db.execute(
         text("""
             SELECT ar.id::text, ar.period_start, ar.period_end,
@@ -89,7 +89,8 @@ async def generate_report_endpoint(
                    u.user_id::text
             FROM analysis_results ar
             JOIN uploads u ON u.id = ar.upload_id
-            WHERE ar.id = :analysis_id AND ar.user_id = :user_id
+            WHERE (ar.id::text = :analysis_id OR ar.upload_id::text = :analysis_id)
+              AND ar.user_id = :user_id
         """),
         {"analysis_id": payload.analysis_id, "user_id": current_user.user_id},
     )
