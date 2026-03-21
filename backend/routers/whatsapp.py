@@ -34,6 +34,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _app_url() -> str:
+    """Return the public app URL — set APP_URL in .env for production."""
+    return settings.APP_URL.rstrip("/")
+
+
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
@@ -180,7 +185,7 @@ async def receive_twilio_webhook(
                 send_whatsapp_sync, phone,
                 "📂 File मिली! लेकिन WhatsApp sandbox पर CSV/Excel directly analyze नहीं हो सकती।\n\n"
                 "👇 *यहाँ upload करें — 30 seconds में analysis ready:*\n"
-                "*https://munim.app/upload*\n\n"
+                f"*https://{_app_url()}/upload*\n\n"
                 "या अपना ledger का photo भेजें — वो directly analyze हो जाएगा! 📸"
             )
         return {"status": "ok"}
@@ -491,7 +496,7 @@ def _run_whatsapp_file_analysis(file_bytes: bytes, filename: str, user_id: str |
     if dead:
         msg += f"\n🛑 *Dead Stock:*\n{dead_lines}\n"
 
-    msg += f"\n💡 Full details: *munim.app*\n— Munim (आपका digital मुनीम)"
+    msg += f"\n💡 Full details: {_app_url()}\n— Munim (आपका digital मुनीम)"
 
     return msg
 
@@ -655,7 +660,7 @@ async def _respond_to_message(
 
     if not user_id:
         response = (
-            "🙏 Munim पर register करें: munim.app\n"
+            f"🙏 Munim पर register करें: {_app_url()}\n"
             "आपका business data track करने के लिए login करें।"
         )
     else:
@@ -777,7 +782,7 @@ async def _build_response(intent: str, analysis: dict | None, db: AsyncSession) 
     if not analysis:
         return (
             "अभी कोई data नहीं है। 📁\n\n"
-            "Please अपना sales data upload करें: *munim.app*\n"
+            f"Please अपना sales data upload करें: {_app_url()}\n"
             "CSV, Excel, या Tally XML सब चलेगा।"
         )
 
@@ -798,13 +803,13 @@ async def _build_response(intent: str, analysis: dict | None, db: AsyncSession) 
             return (
                 f"💰 आज की revenue: *₹{float(rev):,.0f}*  {trend_emoji}\n"
                 f"Period: {analysis['period_start']} → {period_end}\n\n"
-                "Full analysis: munim.app"
+                f"Full analysis: {_app_url()}"
             )
         else:
             return (
                 f"📅 आज का data नहीं है।\n"
                 f"Last upload: *{period_end[:10] if period_end else 'N/A'}* का था।\n\n"
-                "नया data upload करें: *munim.app*"
+                f"नया data upload करें: {_app_url()}"
             )
 
     elif intent == "revenue_query":
@@ -817,7 +822,7 @@ async def _build_response(intent: str, analysis: dict | None, db: AsyncSession) 
             f"💰 *{owner_name} जी*, आपकी revenue:\n\n"
             f"*₹{float(rev):,.0f}* {change_str} {trend_emoji}\n"
             f"Period: {period_end[:10] if period_end else 'N/A'} तक\n\n"
-            "Full report: munim.app/reports"
+            f"Full report: {_app_url()}/reports"
         )
 
     elif intent == "best_product":
@@ -830,9 +835,9 @@ async def _build_response(intent: str, analysis: dict | None, db: AsyncSession) 
                 f"🏆 *Best Product:*\n\n"
                 f"*{name}*\n"
                 f"Revenue: ₹{float(rev):,.0f}\n\n"
-                f"Top 3 products देखें: munim.app"
+                f"Top 3 products देखें: {_app_url()}"
             )
-        return "अभी product data नहीं है। Data upload करें: munim.app"
+        return f"अभी product data नहीं है। Data upload करें: {_app_url()}"
 
     elif intent == "slow_stock":
         dead_stock = metrics.get("dead_stock", [])
@@ -845,7 +850,7 @@ async def _build_response(intent: str, analysis: dict | None, db: AsyncSession) 
         for i, item in enumerate(dead_stock[:3], 1):
             name = item.get("name", "?") if isinstance(item, dict) else str(item)
             lines.append(f"{i}. {name}")
-        lines.append("\nFull analysis: munim.app")
+        lines.append(f"\nFull analysis: {_app_url()}")
         return "\n".join(lines)
 
     elif intent == "customer_count":
@@ -860,7 +865,7 @@ async def _build_response(intent: str, analysis: dict | None, db: AsyncSession) 
             f"• Champions: {champion}\n"
             f"• At Risk: {at_risk}\n"
             f"• Lost: {lost}\n\n"
-            "Full segmentation: munim.app"
+            f"Full segmentation: {_app_url()}"
         )
 
     elif intent == "alerts":
@@ -873,14 +878,14 @@ async def _build_response(intent: str, analysis: dict | None, db: AsyncSession) 
             title = a.get("title", "Alert")
             explanation = a.get("explanation", "")[:80]
             lines.append(f"{i}. *{title}*\n   {explanation}")
-        lines.append("\nFull alerts: munim.app/alerts")
+        lines.append(f"\nFull alerts: {_app_url()}/alerts")
         return "\n".join(lines)
 
     elif intent == "upload_link":
         return (
             "📂 *Data Upload करें*\n\n"
             "CSV, Excel, या Tally XML यहाँ upload करें:\n"
-            "👉 *https://munim.app/upload*\n\n"
+            f"👉 *https://{_app_url()}/upload*\n\n"
             "या अपने ledger की *photo भेजें* — Munim खुद analyze कर लेगा! 📸\n\n"
             "Analysis में 30-60 seconds लगते हैं।"
         )
@@ -889,7 +894,7 @@ async def _build_response(intent: str, analysis: dict | None, db: AsyncSession) 
         return (
             f"📊 *{owner_name} जी की Report*\n\n"
             "अपनी full report generate करने के लिए:\n"
-            "*munim.app* → Analysis → Generate Report\n\n"
+            f"{_app_url()} → Analysis → Generate Report\n\n"
             "या type करें *'sales'* for quick summary."
         )
 
@@ -899,7 +904,7 @@ async def _build_response(intent: str, analysis: dict | None, db: AsyncSession) 
             "आपका AI business assistant। 🤖\n\n"
             "*📸 Data भेजने के 2 तरीके:*\n"
             "1. Ledger की *photo भेजें* — instant analysis!\n"
-            "2. *munim.app/upload* पर CSV/Excel upload करें\n\n"
+            f"2. *{_app_url()}/upload* पर CSV/Excel upload करें\n\n"
             "*💬 मुझसे पूछें:*\n"
             "💰 *'sales'* — revenue summary\n"
             "🏆 *'best product'* — top seller\n"
@@ -907,14 +912,14 @@ async def _build_response(intent: str, analysis: dict | None, db: AsyncSession) 
             "👥 *'customer'* — customer info\n"
             "🚨 *'alert'* — business problems\n"
             "📋 *'report'* — full report\n\n"
-            "Website: *munim.app* 🚀"
+            f"Website: {_app_url()} 🚀"
         )
 
     else:  # unknown
         return (
             "मुझे समझ नहीं आया 🤔\n\n"
             "Type करें *'help'* to see all options.\n\n"
-            "या website पर जाएं: *munim.app*"
+            f"या website पर जाएं: {_app_url()}"
         )
 
 

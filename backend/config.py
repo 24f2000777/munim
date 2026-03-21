@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = ["http://localhost:3000"]
     FILE_DELETE_AFTER_DAYS: int = 30
     MAX_FILE_SIZE_MB: int = 50
+    APP_URL: str = "http://localhost:3000"  # Set to your public URL when deployed
 
     # Database (Neon PostgreSQL)
     DATABASE_URL: str
