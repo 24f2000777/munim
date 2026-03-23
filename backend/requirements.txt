@@ -59,7 +59,7 @@ sentry-sdk[fastapi]==2.19.2
 slowapi==0.1.9                  # Rate limiting for FastAPI
 
 # --- Email ---
-resend==2.5.0
+resend==2.26.0
 
 # --- Dev / Testing ---
 pytest==8.3.4
