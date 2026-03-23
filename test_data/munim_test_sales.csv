@@ -1,0 +1,157 @@
+Date,Customer,Product,Amount,Qty
+01/01/2026,Sharma Traders,Parle-G Biscuit 1kg,4500,30
+01/01/2026,Gupta General Store,Tata Salt 1kg,1200,40
+01/01/2026,Patel Kirana,Surf Excel 1kg,3600,12
+02/01/2026,Singh General Store,Maggi Noodles 12pk,2880,16
+02/01/2026,Sharma Traders,Amul Butter 500g,5600,20
+02/01/2026,Walk-in Customer,Fortune Oil 1L,1950,5
+03/01/2026,Gupta General Store,Parle-G Biscuit 1kg,3000,20
+03/01/2026,Mehta Provision,Tata Salt 1kg,2400,80
+03/01/2026,Patel Kirana,Maggi Noodles 12pk,3600,20
+04/01/2026,Sharma Traders,Surf Excel 1kg,5400,18
+04/01/2026,Singh General Store,Amul Butter 500g,4200,15
+04/01/2026,Walk-in Customer,Fortune Oil 1L,2340,6
+05/01/2026,Gupta General Store,Parle-G Biscuit 1kg,1500,10
+05/01/2026,Mehta Provision,Maggi Noodles 12pk,5040,28
+06/01/2026,Patel Kirana,Tata Salt 1kg,900,30
+06/01/2026,Sharma Traders,Fortune Oil 1L,3900,10
+07/01/2026,Singh General Store,Surf Excel 1kg,2700,9
+07/01/2026,Walk-in Customer,Parle-G Biscuit 1kg,750,5
+08/01/2026,Gupta General Store,Amul Butter 500g,7000,25
+08/01/2026,Mehta Provision,Fortune Oil 1L,7800,20
+09/01/2026,Sharma Traders,Parle-G Biscuit 1kg,6000,40
+09/01/2026,Patel Kirana,Maggi Noodles 12pk,2160,12
+10/01/2026,Singh General Store,Tata Salt 1kg,1500,50
+10/01/2026,Walk-in Customer,Surf Excel 1kg,1800,6
+11/01/2026,Gupta General Store,Fortune Oil 1L,3120,8
+11/01/2026,Mehta Provision,Parle-G Biscuit 1kg,4500,30
+12/01/2026,Sharma Traders,Amul Butter 500g,8400,30
+12/01/2026,Patel Kirana,Surf Excel 1kg,4500,15
+13/01/2026,Singh General Store,Maggi Noodles 12pk,1800,10
+13/01/2026,Walk-in Customer,Tata Salt 1kg,600,20
+14/01/2026,Gupta General Store,Fortune Oil 1L,4680,12
+14/01/2026,Mehta Provision,Parle-G Biscuit 1kg,3000,20
+15/01/2026,Sharma Traders,Tata Salt 1kg,3000,100
+15/01/2026,Patel Kirana,Amul Butter 500g,5600,20
+16/01/2026,Singh General Store,Maggi Noodles 12pk,2520,14
+16/01/2026,Walk-in Customer,Fortune Oil 1L,1560,4
+17/01/2026,Gupta General Store,Surf Excel 1kg,3600,12
+17/01/2026,Mehta Provision,Amul Butter 500g,4200,15
+18/01/2026,Sharma Traders,Parle-G Biscuit 1kg,4500,30
+18/01/2026,Patel Kirana,Tata Salt 1kg,1200,40
+19/01/2026,Singh General Store,Fortune Oil 1L,3900,10
+19/01/2026,Walk-in Customer,Surf Excel 1kg,2700,9
+20/01/2026,Gupta General Store,Maggi Noodles 12pk,3600,20
+20/01/2026,Mehta Provision,Parle-G Biscuit 1kg,4500,30
+21/01/2026,Sharma Traders,Amul Butter 500g,7000,25
+21/01/2026,Patel Kirana,Fortune Oil 1L,3120,8
+22/01/2026,Singh General Store,Tata Salt 1kg,900,30
+22/01/2026,Walk-in Customer,Parle-G Biscuit 1kg,1500,10
+23/01/2026,Gupta General Store,Surf Excel 1kg,4500,15
+23/01/2026,Mehta Provision,Maggi Noodles 12pk,5040,28
+24/01/2026,Sharma Traders,Fortune Oil 1L,7800,20
+24/01/2026,Patel Kirana,Amul Butter 500g,4200,15
+25/01/2026,Singh General Store,Parle-G Biscuit 1kg,3000,20
+25/01/2026,Walk-in Customer,Tata Salt 1kg,300,10
+26/01/2026,Gupta General Store,Amul Butter 500g,5600,20
+26/01/2026,Mehta Provision,Surf Excel 1kg,2700,9
+27/01/2026,Sharma Traders,Maggi Noodles 12pk,3600,20
+27/01/2026,Patel Kirana,Parle-G Biscuit 1kg,2250,15
+28/01/2026,Singh General Store,Fortune Oil 1L,2340,6
+28/01/2026,Walk-in Customer,Surf Excel 1kg,1800,6
+29/01/2026,Gupta General Store,Tata Salt 1kg,1500,50
+29/01/2026,Mehta Provision,Fortune Oil 1L,3120,8
+30/01/2026,Sharma Traders,Amul Butter 500g,5600,20
+30/01/2026,Patel Kirana,Maggi Noodles 12pk,1800,10
+31/01/2026,Singh General Store,Parle-G Biscuit 1kg,1500,10
+31/01/2026,Walk-in Customer,Tata Salt 1kg,600,20
+01/02/2026,Gupta General Store,Surf Excel 1kg,4500,15
+01/02/2026,Mehta Provision,Amul Butter 500g,7000,25
+02/02/2026,Sharma Traders,Fortune Oil 1L,5460,14
+02/02/2026,Patel Kirana,Parle-G Biscuit 1kg,3000,20
+03/02/2026,Singh General Store,Maggi Noodles 12pk,3240,18
+03/02/2026,Walk-in Customer,Tata Salt 1kg,900,30
+04/02/2026,Gupta General Store,Amul Butter 500g,4200,15
+04/02/2026,Mehta Provision,Fortune Oil 1L,4680,12
+05/02/2026,Sharma Traders,Parle-G Biscuit 1kg,6000,40
+05/02/2026,Patel Kirana,Surf Excel 1kg,2700,9
+06/02/2026,Singh General Store,Tata Salt 1kg,1800,60
+06/02/2026,Walk-in Customer,Maggi Noodles 12pk,1260,7
+07/02/2026,Gupta General Store,Fortune Oil 1L,3900,10
+07/02/2026,Mehta Provision,Parle-G Biscuit 1kg,6000,40
+08/02/2026,Sharma Traders,Amul Butter 500g,8400,30
+08/02/2026,Patel Kirana,Maggi Noodles 12pk,2880,16
+09/02/2026,Singh General Store,Surf Excel 1kg,3600,12
+09/02/2026,Walk-in Customer,Fortune Oil 1L,1950,5
+10/02/2026,Gupta General Store,Parle-G Biscuit 1kg,4500,30
+10/02/2026,Mehta Provision,Tata Salt 1kg,2400,80
+11/02/2026,Sharma Traders,Surf Excel 1kg,5400,18
+11/02/2026,Patel Kirana,Amul Butter 500g,5600,20
+12/02/2026,Singh General Store,Maggi Noodles 12pk,3600,20
+12/02/2026,Walk-in Customer,Parle-G Biscuit 1kg,750,5
+13/02/2026,Gupta General Store,Tata Salt 1kg,1200,40
+13/02/2026,Mehta Provision,Fortune Oil 1L,7800,20
+14/02/2026,Sharma Traders,Parle-G Biscuit 1kg,4500,30
+14/02/2026,Patel Kirana,Surf Excel 1kg,3600,12
+15/02/2026,Singh General Store,Amul Butter 500g,4200,15
+15/02/2026,Walk-in Customer,Tata Salt 1kg,300,10
+16/02/2026,Gupta General Store,Maggi Noodles 12pk,1800,10
+16/02/2026,Mehta Provision,Parle-G Biscuit 1kg,3000,20
+17/02/2026,Sharma Traders,Fortune Oil 1L,3120,8
+17/02/2026,Patel Kirana,Amul Butter 500g,2800,10
+18/02/2026,Singh General Store,Surf Excel 1kg,4500,15
+19/02/2026,Walk-in Customer,Maggi Noodles 12pk,1260,7
+19/02/2026,Gupta General Store,Parle-G Biscuit 1kg,3000,20
+20/02/2026,Mehta Provision,Tata Salt 1kg,900,30
+20/02/2026,Sharma Traders,Amul Butter 500g,5600,20
+21/02/2026,Patel Kirana,Fortune Oil 1L,2340,6
+21/02/2026,Singh General Store,Surf Excel 1kg,2700,9
+22/02/2026,Walk-in Customer,Parle-G Biscuit 1kg,1500,10
+23/02/2026,Gupta General Store,Amul Butter 500g,7000,25
+23/02/2026,Mehta Provision,Maggi Noodles 12pk,3600,20
+24/02/2026,Sharma Traders,Tata Salt 1kg,3000,100
+24/02/2026,Patel Kirana,Parle-G Biscuit 1kg,2250,15
+25/02/2026,Singh General Store,Fortune Oil 1L,3900,10
+26/02/2026,Walk-in Customer,Surf Excel 1kg,900,3
+26/02/2026,Gupta General Store,Maggi Noodles 12pk,2520,14
+27/02/2026,Mehta Provision,Amul Butter 500g,4200,15
+27/02/2026,Sharma Traders,Parle-G Biscuit 1kg,3000,20
+28/02/2026,Patel Kirana,Tata Salt 1kg,600,20
+28/02/2026,Singh General Store,Fortune Oil 1L,1560,4
+01/03/2026,Gupta General Store,Surf Excel 1kg,3600,12
+01/03/2026,Mehta Provision,Parle-G Biscuit 1kg,4500,30
+02/03/2026,Sharma Traders,Maggi Noodles 12pk,5040,28
+02/03/2026,Patel Kirana,Amul Butter 500g,4200,15
+03/03/2026,Singh General Store,Tata Salt 1kg,1200,40
+03/03/2026,Walk-in Customer,Fortune Oil 1L,780,2
+04/03/2026,Gupta General Store,Parle-G Biscuit 1kg,1500,10
+04/03/2026,Mehta Provision,Surf Excel 1kg,2700,9
+05/03/2026,Sharma Traders,Amul Butter 500g,7000,25
+05/03/2026,Patel Kirana,Maggi Noodles 12pk,1800,10
+06/03/2026,Singh General Store,Parle-G Biscuit 1kg,3000,20
+06/03/2026,Walk-in Customer,Tata Salt 1kg,900,30
+07/03/2026,Gupta General Store,Fortune Oil 1L,4680,12
+07/03/2026,Mehta Provision,Amul Butter 500g,5600,20
+08/03/2026,Sharma Traders,Surf Excel 1kg,5400,18
+08/03/2026,Patel Kirana,Parle-G Biscuit 1kg,4500,30
+09/03/2026,Singh General Store,Maggi Noodles 12pk,1800,10
+09/03/2026,Walk-in Customer,Surf Excel 1kg,1800,6
+10/03/2026,Gupta General Store,Tata Salt 1kg,1500,50
+10/03/2026,Mehta Provision,Fortune Oil 1L,3120,8
+11/03/2026,Sharma Traders,Parle-G Biscuit 1kg,6000,40
+11/03/2026,Patel Kirana,Amul Butter 500g,5600,20
+12/03/2026,Singh General Store,Surf Excel 1kg,3600,12
+12/03/2026,Walk-in Customer,Parle-G Biscuit 1kg,750,5
+13/03/2026,Gupta General Store,Maggi Noodles 12pk,3600,20
+14/03/2026,Mehta Provision,Tata Salt 1kg,2400,80
+14/03/2026,Sharma Traders,Fortune Oil 1L,7800,20
+15/03/2026,Patel Kirana,Surf Excel 1kg,2700,9
+15/03/2026,Singh General Store,Amul Butter 500g,2800,10
+16/03/2026,Walk-in Customer,Maggi Noodles 12pk,900,5
+16/03/2026,Gupta General Store,Parle-G Biscuit 1kg,3000,20
+17/03/2026,Mehta Provision,Amul Butter 500g,7000,25
+17/03/2026,Sharma Traders,Maggi Noodles 12pk,3240,18
+18/03/2026,Patel Kirana,Tata Salt 1kg,1200,40
+18/03/2026,Singh General Store,Fortune Oil 1L,3900,10
+19/03/2026,Walk-in Customer,Surf Excel 1kg,2700,9
+19/03/2026,Gupta General Store,Amul Butter 500g,4200,15
