@@ -5,6 +5,13 @@ import { API_BASE } from "@/lib/constants";
 export const apiClient = axios.create({
   baseURL: `${API_BASE}/api/v1`,
   timeout: 30_000,
+  headers: {
+    // Bypass ngrok's browser-warning interstitial page in development.
+    // Without this, every GET/POST through a free ngrok URL returns HTML
+    // instead of JSON, breaking all polling and API calls silently.
+    // Harmless on non-ngrok servers (header is simply ignored).
+    "ngrok-skip-browser-warning": "true",
+  },
 });
 
 apiClient.interceptors.request.use(async (config) => {

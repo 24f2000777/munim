@@ -276,12 +276,18 @@ def _parse_workbook(
         if column_map_override:
             # Only use columns that actually exist in the dataframe
             valid_override = {k: v for k, v in column_map_override.items() if v in df.columns}
-            if valid_override.get("date") or valid_override.get("amount") or valid_override.get("credit"):
-                column_map = valid_override
+            # Also carry _compute_expr (not a column name, no validation needed)
+            if "_compute_expr" in column_map_override:
+                valid_override["_compute_expr"] = column_map_override["_compute_expr"]
+            if valid_override.get("date") or valid_override.get("amount") or valid_override.get("credit") or valid_override.get("_compute_expr"):
+                # Merge: rule-based fills gaps Gemini doesn't cover (e.g. unit_price)
+                column_map = {**column_map, **valid_override}
 
         has_amount = "amount" in column_map
         has_dr_cr = "debit" in column_map or "credit" in column_map
-        if "date" not in column_map or (not has_amount and not has_dr_cr):
+        has_qty_price = "quantity" in column_map and "unit_price" in column_map
+        has_expr = "_compute_expr" in column_map
+        if "date" not in column_map or (not has_amount and not has_dr_cr and not has_qty_price and not has_expr):
             all_warnings.append(
                 f"Sheet {sname!r}: could not identify required date/amount columns — skipped. "
                 f"Detected: {column_map}"
@@ -403,6 +409,138 @@ def _detect_columns(columns: list[str]) -> dict[str, str]:
     return result
 
 
+def _eval_amount_expr(row: pd.Series, expr: str, df_columns: list[str]) -> Decimal:
+    """
+    Safely evaluate an arithmetic expression like 'UnitPrice * Quantity'.
+    Only allows column names (from df_columns) and basic operators (+, -, *, /).
+    No eval() — manually tokenizes and computes with Decimal arithmetic.
+    """
+    import re
+    # Tokenize: extract column names and operators
+    # Strategy: split by operators, keeping operators as tokens
+    tokens = re.split(r"(\s*[\+\-\*\/]\s*)", expr)
+    tokens = [t.strip() for t in tokens if t.strip()]
+
+    values: list[Decimal] = []
+    operators: list[str] = []
+
+    for token in tokens:
+        if token in ("+", "-", "*", "/"):
+            operators.append(token)
+        else:
+            # Must be a column name
+            if token in df_columns:
+                raw = str(row.get(token, "")).strip()
+                values.append(_parse_amount(raw))
+            else:
+                # Unknown token — try treating as a literal number
+                try:
+                    values.append(Decimal(token))
+                except Exception:
+                    logger.debug("Unknown token in expr %r: %r — using 0", expr, token)
+                    values.append(Decimal(0))
+
+    if not values:
+        return Decimal(0)
+
+    result = values[0]
+    for i, op in enumerate(operators):
+        if i + 1 >= len(values):
+            break
+        rhs = values[i + 1]
+        if op == "*":
+            result = result * rhs
+        elif op == "/":
+            result = result / rhs if rhs != Decimal(0) else Decimal(0)
+        elif op == "+":
+            result = result + rhs
+        elif op == "-":
+            result = result - rhs
+
+    return result
+
+
+def _validate_column_map(
+    df: pd.DataFrame,
+    column_map: dict[str, str],
+    sample_size: int = 20,
+) -> tuple[bool, str]:
+    """
+    Validate a column map by attempting to parse a sample of rows.
+    Returns (is_valid, error_reason).
+    A map is valid if >= 50% of sampled rows produce a parseable date AND non-zero amount.
+    """
+    sample = df.head(sample_size)
+    date_col = column_map.get("date")
+    amount_col = column_map.get("amount")
+    compute_expr = column_map.get("_compute_expr")
+    debit_col = column_map.get("debit")
+    credit_col = column_map.get("credit")
+    qty_col = column_map.get("quantity")
+    unit_price_col = column_map.get("unit_price")
+    df_columns = df.columns.tolist()
+
+    use_dr_cr = not amount_col and (debit_col or credit_col)
+    use_qty_price = not amount_col and not use_dr_cr and not compute_expr and bool(qty_col and unit_price_col)
+    use_expr = bool(compute_expr) and not amount_col
+
+    valid = 0
+    total = 0
+    date_failures = 0
+    amount_zeros = 0
+
+    for _, row in sample.iterrows():
+        total += 1
+
+        # Check date
+        date_raw = str(row.get(date_col, "")).strip() if date_col else ""
+        date = _parse_date(date_raw)
+        if date is None:
+            date_failures += 1
+            continue
+
+        # Check amount
+        if use_expr and compute_expr:
+            amount = _eval_amount_expr(row, compute_expr, df_columns)
+        elif use_dr_cr:
+            cr = _parse_amount(str(row.get(credit_col, "")).strip() if credit_col else "")
+            dr = _parse_amount(str(row.get(debit_col, "")).strip() if debit_col else "")
+            amount = cr - dr
+        elif use_qty_price:
+            qty = _parse_amount(str(row.get(qty_col, "")).strip() if qty_col else "")
+            price = _parse_amount(str(row.get(unit_price_col, "")).strip() if unit_price_col else "")
+            amount = qty * price
+        else:
+            amount_raw = str(row.get(amount_col, "")).strip() if amount_col else ""
+            amount = _parse_amount(amount_raw)
+
+        if amount == Decimal(0):
+            amount_zeros += 1
+            continue
+
+        valid += 1
+
+    if total == 0:
+        return False, "No rows to validate"
+
+    pct = valid / total
+    if pct >= 0.5:
+        return True, ""
+
+    reasons = []
+    if date_failures > total * 0.3:
+        reasons.append(f"{date_failures}/{total} rows had unparseable dates in column {date_col!r}")
+    if amount_zeros > total * 0.3:
+        reasons.append(
+            f"{amount_zeros}/{total} rows had zero amounts — "
+            f"amount_col={amount_col!r}, compute_expr={compute_expr!r}"
+        )
+    if not reasons:
+        reasons.append(f"only {valid}/{total} rows produced valid date+amount pairs")
+
+    return False, "; ".join(reasons)
+
+
 def _normalise_dataframe(
     df: pd.DataFrame,
     column_map: dict[str, str],
@@ -432,8 +570,15 @@ def _normalise_dataframe(
     product_col = column_map.get("product")
     debit_col = column_map.get("debit")
     credit_col = column_map.get("credit")
-    # Use debit/credit combination only when no direct amount column exists
-    use_dr_cr = not amount_col and (debit_col or credit_col)
+    qty_col = column_map.get("quantity")
+    unit_price_col = column_map.get("unit_price")
+    compute_expr = column_map.get("_compute_expr")  # LLM-provided expression
+    df_columns = df.columns.tolist()
+
+    # Determine amount computation strategy (priority order)
+    use_expr = bool(compute_expr) and not amount_col
+    use_dr_cr = not amount_col and not use_expr and (debit_col or credit_col)
+    use_qty_price = not amount_col and not use_expr and not use_dr_cr and bool(qty_col and unit_price_col)
 
     failed_dates = 0
 
@@ -445,12 +590,18 @@ def _normalise_dataframe(
             failed_dates += 1
             continue
 
-        # Parse amount — direct column or debit/credit combination
-        if use_dr_cr:
+        # Parse amount — LLM expression → debit/credit → qty×price → direct column
+        if use_expr and compute_expr:
+            amount = _eval_amount_expr(row, compute_expr, df_columns)
+        elif use_dr_cr:
             cr = _parse_amount(str(row.get(credit_col, "")).strip() if credit_col else "")
             dr = _parse_amount(str(row.get(debit_col, "")).strip() if debit_col else "")
             # Net credit = income (positive), net debit = expense (negative)
             amount = cr - dr
+        elif use_qty_price:
+            qty = _parse_amount(str(row.get(qty_col, "")).strip() if qty_col else "")
+            price = _parse_amount(str(row.get(unit_price_col, "")).strip() if unit_price_col else "")
+            amount = qty * price
         else:
             amount_raw = str(row.get(amount_col, "")).strip() if amount_col else ""
             amount = _parse_amount(amount_raw)
@@ -549,12 +700,18 @@ def _parse_csv_bytes(raw: bytes, column_map_override: Optional[dict] = None) -> 
     # Override with Gemini-detected mapping if provided
     if column_map_override:
         valid_override = {k: v for k, v in column_map_override.items() if v in df.columns}
-        if valid_override.get("date") or valid_override.get("amount") or valid_override.get("credit"):
-            column_map = valid_override
+        # Also carry _compute_expr (not a column name, no validation needed)
+        if "_compute_expr" in column_map_override:
+            valid_override["_compute_expr"] = column_map_override["_compute_expr"]
+        if valid_override.get("date") or valid_override.get("amount") or valid_override.get("credit") or valid_override.get("_compute_expr"):
+            # Merge: rule-based fills gaps Gemini doesn't cover (e.g. unit_price)
+            column_map = {**column_map, **valid_override}
 
     has_amount = "amount" in column_map
     has_dr_cr = "debit" in column_map or "credit" in column_map
-    if "date" not in column_map or (not has_amount and not has_dr_cr):
+    has_qty_price = "quantity" in column_map and "unit_price" in column_map
+    has_expr = "_compute_expr" in column_map
+    if "date" not in column_map or (not has_amount and not has_dr_cr and not has_qty_price and not has_expr):
         raise ExcelParseError(
             f"Could not detect required date/amount columns. "
             f"Detected: {column_map}. Columns found: {df.columns.tolist()}"

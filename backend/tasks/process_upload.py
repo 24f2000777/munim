@@ -87,7 +87,7 @@ def _get_file_bytes(file_path: str) -> bytes:
     return response["Body"].read()
 
 
-def _dispatch_anomaly_alert(engine, user_id: str, anomaly_report, owner_name: str) -> None:
+def _dispatch_anomaly_alert(engine, user_id: str, anomaly_report) -> None:
     """
     Send an automatic WhatsApp alert when HIGH severity anomalies are detected.
     Only sends if:
@@ -144,21 +144,23 @@ def _dispatch_anomaly_alert(engine, user_id: str, anomaly_report, owner_name: st
         explanation = getattr(anomaly, 'explanation', '')[:120]
         action = getattr(anomaly, 'action', 'Please review your data.')
 
+        app_url = settings.APP_URL.rstrip("/")
         message = (
             f"🚨 *{owner} जी — Business Alert!*\n\n"
             f"⚠️ *{title}*\n"
             f"{explanation}\n\n"
             f"💡 क्या करें: {action}\n\n"
-            f"Full details: munim.app\n"
+            f"Full details: {app_url}\n"
             f"— Munim (आपका digital मुनीम)"
         )
         if len(top_anomalies) > 1:
-            message += f"\n\n_(और {len(top_anomalies) - 1} alerts हैं — munim.app पर देखें)_"
+            message += f"\n\n_(और {len(top_anomalies) - 1} alerts हैं — {app_url} पर देखें)_"
     else:
+        app_url = settings.APP_URL.rstrip("/")
         message = (
             f"🚨 *{owner} जी — Business Alert!*\n\n"
             f"आपके नए data में HIGH severity issues मिले हैं।\n"
-            f"Full details देखें: munim.app\n\n"
+            f"Full details देखें: {app_url}\n\n"
             f"— Munim"
         )
 
@@ -347,7 +349,6 @@ def run_pipeline(upload_id: str) -> dict:
                     engine=engine,
                     user_id=str(upload.user_id),
                     anomaly_report=anomaly_report,
-                    owner_name=str(getattr(upload, 'user_id', 'Unknown')),
                 )
             except Exception as alert_exc:
                 # Never let alert dispatch break the main pipeline

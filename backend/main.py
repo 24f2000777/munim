@@ -18,7 +18,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from db.neon_client import init_db, close_db
-from routers import upload, analysis, reports, whatsapp, auth, ca
+from routers import upload, analysis, reports, whatsapp, auth, ca, beta
 from config import settings
 
 # ---------------------------------------------------------------------------
@@ -82,7 +82,7 @@ app.add_middleware(
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "ngrok-skip-browser-warning"],
 )
 
 # ---------------------------------------------------------------------------
@@ -94,6 +94,7 @@ app.include_router(analysis.router,  prefix="/api/v1/analysis",  tags=["Analysis
 app.include_router(reports.router,   prefix="/api/v1/reports",   tags=["Reports"])
 app.include_router(whatsapp.router,  prefix="/api/v1/whatsapp",  tags=["WhatsApp"])
 app.include_router(ca.router,        prefix="/api/v1/ca",        tags=["CA Console"])
+app.include_router(beta.router,      prefix="/api/v1/beta",      tags=["Beta"])
 
 
 # ---------------------------------------------------------------------------
@@ -121,8 +122,6 @@ async def health_check():
 # ---------------------------------------------------------------------------
 @app.get("/", tags=["System"], include_in_schema=False)
 async def root():
-    return {
-        "product": "Munim",
-        "tagline": "AI Business Intelligence for Indian SMBs",
-        "docs": "/docs",
-    }
+    from fastapi.responses import RedirectResponse
+    frontend = settings.APP_URL.rstrip("/")
+    return RedirectResponse(url=f"{frontend}/dashboard", status_code=302)

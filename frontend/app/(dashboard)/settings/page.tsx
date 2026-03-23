@@ -42,6 +42,7 @@ export default function SettingsPage() {
   const [notifAnalysis, setNotifAnalysis] = useState(true);
   const [notifAlerts,   setNotifAlerts]   = useState(true);
   const [notifWeekly,   setNotifWeekly]   = useState(false);
+  const [notifMonthly,  setNotifMonthly]  = useState(false);
 
   // Populate form from real profile data once loaded
   useEffect(() => {
@@ -52,6 +53,7 @@ export default function SettingsPage() {
       setPhone((profile.phone ?? "").replace(/^\+91/, ""));
       setNotifAlerts(profile.notify_on_anomaly ?? true);
       setNotifWeekly(profile.notify_weekly ?? false);
+      setNotifMonthly(profile.notify_monthly ?? false);
     }
   }, [profile]);
 
@@ -68,7 +70,7 @@ export default function SettingsPage() {
         whatsapp_opted_in:   whatsapp,
         notify_on_anomaly:   notifAlerts,
         notify_weekly:       notifWeekly,
-        notify_monthly:      false,
+        notify_monthly:      notifMonthly,
       });
       toast.success("Settings saved successfully");
     } catch {
@@ -164,7 +166,7 @@ export default function SettingsPage() {
         )}
       </div>
 
-      {/* Notifications — persisted in localStorage */}
+      {/* Notifications — persisted in database */}
       <div className="card p-6">
         <div className="flex items-center gap-2 mb-5">
           <Bell className="w-5 h-5 text-muted-foreground" />
@@ -190,10 +192,16 @@ export default function SettingsPage() {
               on:    notifWeekly,
               toggle: () => setNotifWeekly((v) => !v),
             },
+            {
+              label: "Monthly summary",
+              desc:  "Summary on the 1st of each month",
+              on:    notifMonthly,
+              toggle: () => setNotifMonthly((v) => !v),
+            },
           ].map((n, i) => (
             <div
               key={n.label}
-              className={`flex items-center justify-between py-4 ${i < 2 ? "border-b border-border" : ""}`}
+              className={`flex items-center justify-between py-4 ${i < 3 ? "border-b border-border" : ""}`}
             >
               <div>
                 <p className="text-base font-semibold text-foreground">{n.label}</p>

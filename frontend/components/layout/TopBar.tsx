@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { Bell, Upload, Sun, Moon } from "lucide-react";
 import { useEffect, useState } from "react";
 
+const ALERTS_SEEN_KEY = "munim_alerts_seen";
+
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/upload":    "Upload",
@@ -48,6 +50,17 @@ export function TopBar() {
   const avatar   = session?.user?.image;
   const name     = session?.user?.name?.split(" ")[0] ?? "User";
 
+  const [alertsSeen, setAlertsSeen] = useState(true);
+  useEffect(() => {
+    setAlertsSeen(localStorage.getItem(ALERTS_SEEN_KEY) === "true");
+  }, []);
+  useEffect(() => {
+    if (pathname === "/alerts") {
+      localStorage.setItem(ALERTS_SEEN_KEY, "true");
+      setAlertsSeen(true);
+    }
+  }, [pathname]);
+
   const title = PAGE_TITLES[pathname] ?? (
     pathname.startsWith("/analysis/") ? "Analysis" : "Munim"
   );
@@ -64,10 +77,12 @@ export function TopBar() {
 
         <ThemeToggle />
 
-        <button className="relative w-9 h-9 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">
+        <Link href="/alerts" className="relative w-9 h-9 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">
           <Bell className="w-[18px] h-[18px]" />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-orange-500 rounded-full ring-2 ring-background" />
-        </button>
+          {!alertsSeen && (
+            <span className="absolute top-2 right-2 w-2 h-2 bg-orange-500 rounded-full ring-2 ring-background" />
+          )}
+        </Link>
 
         <Link href="/settings" className="ml-1">
           {avatar ? (

@@ -9,12 +9,9 @@ import json
 import logging
 from dataclasses import dataclass
 
-from google import genai
-
 from config import settings
 
 logger = logging.getLogger(__name__)
-GEMINI_MODEL = "gemini-2.0-flash-lite"
 
 
 @dataclass
@@ -39,11 +36,9 @@ def generate_insights(
     total_customers: int,
 ) -> list[AiInsight]:
     """
-    Generate 4 business-specific insights via Gemini.
+    Generate 4 business-specific insights via AI model router.
     Returns [] on any failure — non-blocking.
     """
-    if not settings.GOOGLE_API_KEY:
-        return []
     try:
         return _call_gemini(
             business_type=business_type,
@@ -66,42 +61,61 @@ def generate_insights(
 def _call_gemini(*, business_type, period_start, period_end, period_label,
                  current_revenue, previous_revenue, change_pct,
                  top_products, dead_stock, anomalies, total_customers) -> list[AiInsight]:
-    client = genai.Client(api_key=settings.GOOGLE_API_KEY)
+    from services.ai.model_router import router as _router
 
     change_str = f"{change_pct:+.1f}%" if change_pct is not None else "first period (no comparison)"
     top_str = ", ".join(f"{p['name']} (₹{p['revenue']:,.0f})" for p in top_products[:5]) or "none"
     dead_str = ", ".join(f"{d['product']} ({d.get('days_since_sale', '?')} days)" for d in dead_stock[:5]) or "none"
     alert_str = "; ".join(f"{a['severity']}: {a['title']}" for a in anomalies[:4]) or "none"
 
-    prompt = f"""You are a senior business analyst advising an Indian {business_type} owner.
+    # Priority logic: warnings first if revenue dropped, celebrations first if growing
+    revenue_dropped = change_pct is not None and change_pct < -10
+    revenue_grew = change_pct is not None and change_pct > 15
+    priority_guidance = ""
+    if revenue_dropped:
+        priority_guidance = "PRIORITY: Revenue dropped >10% — priority 1 MUST be a 'warning' insight."
+    elif revenue_grew:
+        priority_guidance = "PRIORITY: Revenue grew >15% — priority 1 MUST be a 'celebration' insight."
+    if dead_stock:
+        priority_guidance += " Include one 'action' insight about dead stock."
 
-Their financial data summary:
-- Analysis period: {period_start} to {period_end} ({period_label})
-- Revenue this period: ₹{current_revenue:,.0f}
-- Revenue previous period: ₹{previous_revenue:,.0f} (change: {change_str})
-- Top selling items: {top_str}
-- Slow/dead stock (not sold recently): {dead_str}
-- Alerts detected: {alert_str}
-- Total customers tracked: {total_customers}
+    prompt = f"""ROLE: You are a seasoned business consultant who has advised 1,000+ Indian small businesses — kirana stores, medical shops, restaurants, hardware shops, textile traders.
 
-Generate exactly 4 insights tailored to a {business_type}. Each must:
-1. Reference specific numbers from the data above
-2. Be actionable (tell them what to DO)
-3. Be written in simple English any shopkeeper can understand
-4. Be specific to the {business_type} business context
+TASK: Generate exactly 4 actionable business insights from this sales data.
 
-Return ONLY a valid JSON array, no markdown:
+BUSINESS DATA:
+Type: {business_type}
+Period: {period_start} to {period_end} ({period_label})
+Revenue now: ₹{current_revenue:,.0f}
+Revenue before: ₹{previous_revenue:,.0f} | Change: {change_str}
+Best sellers: {top_str}
+Not selling: {dead_str}
+Alerts found: {alert_str}
+Customer count: {total_customers}
+
+INSIGHT QUALITY CRITERIA (non-negotiable):
+1. SPECIFIC — must reference actual numbers ("Atta revenue up ₹12,000 = 34% growth" not "revenue increased")
+2. ACTIONABLE — must say exactly what to DO ("Reorder Atta this week — stock for 2 weeks", not "manage inventory")
+3. SIMPLE — Class 8 English. No: CAGR, YoY, ROI, churn, cohort, elasticity, penetration
+4. RELEVANT — specific to {business_type} context (a kirana insight ≠ a restaurant insight)
+
+INSIGHT TYPES:
+"opportunity" — specific growth action available RIGHT NOW
+"warning"     — specific risk needing action within 7 days
+"celebration" — genuine achievement worth acknowledging (boosts morale)
+"action"      — concrete operational task: reorder, call customer, adjust price
+
+{priority_guidance}
+
+Return ONLY valid JSON array, no markdown, no explanation:
 [
-  {{
-    "title": "<5-6 words max>",
-    "insight": "<2 sentences max. First sentence states the observation with numbers. Second sentence tells them what to do.>",
-    "type": "<exactly one of: opportunity | warning | celebration | action>",
-    "priority": <integer 1-4, 1 is most urgent>
-  }}
+  {{"title": "Max 6 words", "insight": "2 sentences. Specific numbers. Tell them what to DO.", "type": "opportunity|warning|celebration|action", "priority": 1}},
+  {{"title": "...", "insight": "...", "type": "...", "priority": 2}},
+  {{"title": "...", "insight": "...", "type": "...", "priority": 3}},
+  {{"title": "...", "insight": "...", "type": "...", "priority": 4}}
 ]"""
 
-    response = client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
-    raw = response.text.strip()
+    raw = _router.call_text(prompt, max_tokens=800, temperature=0.3)
     if raw.startswith("```"):
         lines = raw.split("\n")
         raw = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])

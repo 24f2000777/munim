@@ -1,7 +1,44 @@
+"use client";
+
 import Link from "next/link";
-import { ArrowRight, BarChart3, Zap, MessageSquare, TrendingUp, Users, Shield } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, BarChart3, Zap, MessageSquare, TrendingUp, Users, Shield, CheckCircle2, Loader2 } from "lucide-react";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export default function HomePage() {
+  const [phone, setPhone] = useState("");
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [joined, setJoined] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleJoin(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    const cleaned = phone.replace(/\s/g, "");
+    if (!cleaned || cleaned.length < 8) {
+      setError("Please enter a valid WhatsApp number");
+      return;
+    }
+    const fullPhone = cleaned.startsWith("+") ? cleaned : `+91${cleaned}`;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/beta/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: fullPhone, name }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Something went wrong");
+      setJoined(true);
+    } catch (err: any) {
+      setError(err.message || "Could not join. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#0D0D0F] text-white">
       {/* Nav */}
@@ -34,13 +71,13 @@ export default function HomePage() {
             </span>
           </h1>
           <p className="text-xl text-white/50 max-w-2xl mx-auto mb-12 leading-relaxed">
-            Upload your sales data from Tally, Excel, or CSV. Munim analyzes everything in seconds — revenue trends, customer insights, anomalies — and sends WhatsApp reports in your language.
+            Send your sales file on WhatsApp. Munim analyzes everything in 60 seconds — revenue trends, customer insights, anomalies — no app, no login needed.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/login"
+            <a href="#join"
               className="inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold text-lg px-8 py-4 rounded-2xl transition-all shadow-xl shadow-orange-500/25 hover:shadow-orange-500/40">
-              Start for free <ArrowRight className="w-5 h-5" />
-            </Link>
+              Join Beta on WhatsApp <ArrowRight className="w-5 h-5" />
+            </a>
             <a href="#features"
               className="inline-flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold text-lg px-8 py-4 rounded-2xl transition-all">
               See how it works
@@ -60,7 +97,7 @@ export default function HomePage() {
               <span className="text-white/20 text-sm mx-auto font-mono">munim.app/dashboard</span>
             </div>
             <div className="p-6">
-              <p className="text-white/40 text-sm mb-4 font-medium">Good morning, Akshit 👋</p>
+              <p className="text-white/40 text-sm mb-4 font-medium">Good morning, Rahul 👋</p>
               <div className="grid grid-cols-4 gap-3 mb-4">
                 {[
                   { l: "Revenue",      v: "₹2,45,000", c: "+12%",  color: "from-orange-500/20 to-orange-500/5 border-orange-500/20" },
@@ -92,9 +129,9 @@ export default function HomePage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {[
-              { icon: Zap,           title: "Instant Analysis",      desc: "Upload any format — Tally XML, Excel, or CSV. Get full AI analysis in under 30 seconds.", color: "bg-orange-500/15 text-orange-400 border-orange-500/20" },
+              { icon: Zap,           title: "Instant Analysis",      desc: "Send any format on WhatsApp — Tally XML, Excel, or CSV. Get full AI analysis in under 60 seconds.", color: "bg-orange-500/15 text-orange-400 border-orange-500/20" },
               { icon: TrendingUp,    title: "Smart Insights",        desc: "AI detects anomalies, segments customers, spots dead stock, and surfaces actionable intelligence.", color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" },
-              { icon: MessageSquare, title: "WhatsApp Reports",      desc: "Get clear business reports on WhatsApp in Hindi, English, or Hinglish — whatever works for you.", color: "bg-blue-500/15 text-blue-400 border-blue-500/20" },
+              { icon: MessageSquare, title: "WhatsApp First",        desc: "No app to download. No login required. Just send your file on WhatsApp and get your report instantly.", color: "bg-blue-500/15 text-blue-400 border-blue-500/20" },
               { icon: Shield,        title: "Data Privacy",          desc: "Your business data is encrypted, processed securely, and never shared with third parties.", color: "bg-purple-500/15 text-purple-400 border-purple-500/20" },
               { icon: BarChart3,     title: "Revenue Analytics",     desc: "Track revenue trends week over week, identify top products, and understand seasonality.", color: "bg-pink-500/15 text-pink-400 border-pink-500/20" },
               { icon: Users,         title: "Customer Segmentation", desc: "RFM analysis groups your customers by loyalty — focus on the right people at the right time.", color: "bg-yellow-500/15 text-yellow-400 border-yellow-500/20" },
@@ -111,14 +148,110 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* How it works */}
+      <section className="py-24 px-6">
+        <div className="max-w-4xl mx-auto text-center">
+          <p className="text-orange-400 text-sm font-bold uppercase tracking-widest mb-4">How it works</p>
+          <h2 className="text-4xl font-bold text-white tracking-tight mb-16">3 steps. 60 seconds.</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              { step: "1", title: "Join beta", desc: "Enter your WhatsApp number below. We'll send you a welcome message instantly.", emoji: "👇" },
+              { step: "2", title: "Send your file", desc: "Reply with your sales file — CSV, Excel, Tally XML, or even a photo of your register.", emoji: "📁" },
+              { step: "3", title: "Get your analysis", desc: "Full business report in 60 seconds. Revenue, top products, alerts, customer insights.", emoji: "📊" },
+            ].map((s) => (
+              <div key={s.step} className="flex flex-col items-center">
+                <div className="w-14 h-14 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-2xl mb-5">
+                  {s.emoji}
+                </div>
+                <div className="text-orange-400 text-xs font-bold uppercase tracking-widest mb-2">Step {s.step}</div>
+                <h3 className="text-lg font-bold text-white mb-2">{s.title}</h3>
+                <p className="text-white/40 text-sm leading-relaxed">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Beta Join Form */}
+      <section id="join" className="py-24 px-6 bg-[#0A0A0C] border-t border-white/[0.06]">
+        <div className="max-w-lg mx-auto text-center">
+          <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-semibold px-4 py-2 rounded-full mb-8">
+            <MessageSquare className="w-3.5 h-3.5" />
+            Private Beta — Limited Spots
+          </div>
+          <h2 className="text-4xl font-bold text-white tracking-tight mb-4">
+            Start on WhatsApp.<br />Right now.
+          </h2>
+          <p className="text-white/40 text-base mb-10 leading-relaxed">
+            Enter your WhatsApp number. We'll send you a welcome message — then just send your sales file to get your first analysis.
+          </p>
+
+          {joined ? (
+            /* Success state */
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-3xl p-10 flex flex-col items-center gap-4">
+              <CheckCircle2 className="w-14 h-14 text-emerald-400" />
+              <h3 className="text-2xl font-bold text-white">You're in! 🎉</h3>
+              <p className="text-white/50 text-base leading-relaxed">
+                Check WhatsApp — we just sent you a message.<br />
+                Reply with your sales file to get started.
+              </p>
+            </div>
+          ) : (
+            /* Join form */
+            <form onSubmit={handleJoin} className="bg-[#161618] border border-white/[0.07] rounded-3xl p-8 text-left">
+              <div className="mb-5">
+                <label className="block text-sm font-semibold text-white/60 mb-2">Your name (optional)</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Rahul Sharma"
+                  className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:outline-none focus:border-orange-500/50 transition-colors text-base"
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-white/60 mb-2">WhatsApp number *</label>
+                <div className="flex">
+                  <span className="px-4 py-3 bg-white/[0.04] border border-white/10 border-r-0 rounded-l-xl text-white/40 font-semibold text-base select-none">
+                    +91
+                  </span>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="98765 43210"
+                    required
+                    className="flex-1 bg-white/[0.04] border border-white/10 rounded-r-xl px-4 py-3 text-white placeholder:text-white/20 focus:outline-none focus:border-orange-500/50 transition-colors text-base"
+                  />
+                </div>
+                {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-lg px-8 py-4 rounded-2xl transition-all shadow-xl shadow-orange-500/25">
+                {loading ? (
+                  <><Loader2 className="w-5 h-5 animate-spin" /> Joining...</>
+                ) : (
+                  <>Join Beta — Get WhatsApp Access <ArrowRight className="w-5 h-5" /></>
+                )}
+              </button>
+              <p className="text-white/20 text-xs text-center mt-4">
+                We'll send one WhatsApp message. No spam, ever.
+              </p>
+            </form>
+          )}
+        </div>
+      </section>
+
       {/* Stats */}
       <section className="py-20 px-6">
         <div className="max-w-4xl mx-auto">
           <div className="grid grid-cols-3 gap-6 text-center">
             {[
-              { value: "30s",      label: "Average analysis time" },
-              { value: "3",        label: "Supported file formats" },
-              { value: "100%",     label: "Powered by AI" },
+              { value: "60s",   label: "Average analysis time" },
+              { value: "Any",   label: "File format supported" },
+              { value: "100%",  label: "Powered by AI" },
             ].map((s) => (
               <div key={s.label} className="bg-[#161618] border border-white/[0.07] rounded-3xl p-8">
                 <p className="text-5xl font-bold text-white mb-2">{s.value}</p>
@@ -129,16 +262,16 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CTA */}
+      {/* Footer CTA */}
       <section className="py-24 px-6 bg-[#0A0A0C] border-t border-white/[0.06]">
         <div className="max-w-2xl mx-auto text-center">
           <h2 className="text-4xl font-bold text-white tracking-tight mb-4">
-            Start understanding your business today
+            Already have an account?
           </h2>
-          <p className="text-lg text-white/40 mb-10">Free to use. No credit card required.</p>
+          <p className="text-lg text-white/40 mb-10">Access the full dashboard with charts and detailed reports.</p>
           <Link href="/login"
             className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold text-xl px-10 py-5 rounded-2xl transition-all shadow-2xl shadow-orange-500/25 hover:shadow-orange-500/40">
-            Get started with Google <ArrowRight className="w-5 h-5" />
+            Sign in with Google <ArrowRight className="w-5 h-5" />
           </Link>
         </div>
       </section>

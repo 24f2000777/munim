@@ -9,5 +9,5 @@ export default async function CALayout({ children }: { children: React.ReactNode
   const userType = (session.user as any)?.userType ?? "smb_owner";
   if (userType !== "ca_firm") redirect("/dashboard");
 
-  return <AppShell userType="ca_firm">{children}</AppShell>;
+  return <AppShell>{children}</AppShell>;
 }

@@ -48,6 +48,12 @@ def normalise(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     df = df.copy()
     summary: dict[str, int] = {}
 
+    # Ensure date column is always datetime — vision extractor may return strings
+    # Use is_datetime64_any_dtype to catch object, StringDtype, and any other non-datetime type
+    if "date" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["date"]):
+        df["date"] = pd.to_datetime(df["date"], dayfirst=True, errors="coerce")
+        df = df.dropna(subset=["date"])
+
     df, future_count = _flag_future_dates(df)
     summary[FLAG_FUTURE_DATE] = future_count
 

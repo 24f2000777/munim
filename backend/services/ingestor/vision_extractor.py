@@ -13,47 +13,84 @@ Raises ValueError if:
   - The image is unreadable (blurry, dark, etc.)
 """
 
-import base64
+import io
 import json
 import logging
 from decimal import Decimal, InvalidOperation
 
 import pandas as pd
-from google import genai
-from google.genai import types as genai_types
-
-from config import settings
 
 logger = logging.getLogger(__name__)
 
-VISION_MODEL = "gemini-2.0-flash"
+_SYSTEM_PROMPT = """ROLE: You are a precision OCR engine trained specifically on Indian business documents.
 
-_SYSTEM_PROMPT = """You are a data extraction assistant for Indian small business owners.
-Your job is to extract transaction data from photos of:
-- Handwritten ledgers (khata)
-- Vyapar app screenshots
-- Busy/Tally app screenshots
-- Receipt books or billing registers
+TASK: Extract every line item from this image and return as a JSON array.
 
-Extract ALL transaction rows you can see. Return ONLY a JSON array of objects.
-Each object must have these keys:
-  "date": date in any format you see (DD/MM/YYYY, YYYY-MM-DD, etc.)
-  "amount": numeric value only (no ₹ symbol, no commas) — the sale/revenue amount
-  "product": item name or description (use "General" if not visible)
-  "customer": customer name (use "Walk-in" if not visible)
+DOCUMENT TYPES you may see:
+• Handwritten khata/ledger with columns for date, item, quantity, rate, amount
+• Printed kirana/medical/wholesale bills with S.No, Item Description, Qty, Rate, Amount columns
+• Vyapar/Busy/Tally app screenshots showing sales entries
+• Any tabular sales or purchase record
 
-Rules:
-- Return ONLY the JSON array. No markdown, no explanation, no code blocks.
-- If a field is not visible or unclear, use null.
-- For amount: if debit/credit columns exist, use the positive/credit amount.
-- Skip rows that have no amount.
-- Minimum 2 rows required.
+OUTPUT: Return ONLY a valid JSON array — no markdown, no ```, no explanation text.
 
-Example output:
+SCHEMA (each object must have ALL 4 keys):
 [
-  {"date": "15/03/2024", "amount": 450, "product": "Rice 5kg", "customer": "Ramesh"},
-  {"date": "15/03/2024", "amount": 120, "product": "Dal 1kg", "customer": "Walk-in"}
-]"""
+  {
+    "date": "DD/MM/YYYY",
+    "amount": 56,
+    "product": "Tata Salt 1kg",
+    "customer": "Ravi Sharma"
+  }
+]
+
+FIELD RULES:
+• "date": Transaction date. ONE date on the bill? Use it for ALL rows. Format: DD/MM/YYYY.
+• "amount": THE AMOUNT COLUMN ONLY — this is QTY × RATE = AMOUNT (the final/rightmost money column).
+  NEVER use the "Rate", "MRP", or "Unit Price" column.
+  Example: QTY=2, Rate=₹28, Amount=₹56 → use 56 (NOT 28).
+  If QTY × Rate ≠ Amount column → ALWAYS trust the Amount column value.
+• "product": Exact item name. Remove S.No prefix (e.g. strip "1.", "2." from start).
+• "customer": Customer name if visible. "Walk-in" if not shown.
+
+EXTRACTION RULES:
+✓ Extract EVERY product row — no skipping, even if handwriting is unclear (best guess > skipping)
+✓ Single bill date → same date for every extracted row
+✓ "amount" must be pure numeric (no ₹, no commas, no "Rs." — just the number)
+✓ Skip ONLY: header rows, subtotals, grand totals, tax/GST lines, blank rows
+✗ DO NOT skip product rows just because they are hard to read
+
+WORKED EXAMPLES:
+Bill row: "1 | Aashirvaad Atta 5kg | QTY: 1 | Rate: 320 | Amount: 320"
+→ CORRECT: {"date": "12/10/2023", "amount": 320, "product": "Aashirvaad Atta 5kg", "customer": "Walk-in"}
+
+Bill row: "2 | Tata Salt 1kg | QTY: 2 | Rate: 28 | Amount: 56"
+→ CORRECT: {"date": "12/10/2023", "amount": 56, "product": "Tata Salt 1kg", "customer": "Walk-in"}
+→ WRONG:   {"amount": 28}  ← This used Rate column, not Amount column"""
+
+
+def _compress_image(image_bytes: bytes, mime_type: str, max_px: int = 1600, quality: int = 85) -> tuple[bytes, str]:
+    """Resize and compress image to stay under API payload limits (~1MB)."""
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(image_bytes))
+        # Convert RGBA/palette to RGB for JPEG compatibility
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+        # Downscale if either dimension exceeds max_px
+        if max(img.width, img.height) > max_px:
+            img.thumbnail((max_px, max_px), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality, optimize=True)
+        compressed = buf.getvalue()
+        logger.info(
+            "Image compressed: %d KB → %d KB",
+            len(image_bytes) // 1024, len(compressed) // 1024,
+        )
+        return compressed, "image/jpeg"
+    except Exception as exc:
+        logger.warning("Image compression failed (%s) — using original", exc)
+        return image_bytes, mime_type
 
 
 def extract_table_from_image(image_bytes: bytes, filename: str = "upload.jpg") -> pd.DataFrame:
@@ -70,58 +107,32 @@ def extract_table_from_image(image_bytes: bytes, filename: str = "upload.jpg") -
     Raises:
         ValueError: If extraction fails or returns too few rows
     """
-    if not settings.GOOGLE_API_KEY:
-        raise ValueError("GOOGLE_API_KEY not configured — cannot use Gemini Vision")
-
     # Detect MIME type from magic bytes
     if image_bytes[:4] == b"\x89PNG":
         mime_type = "image/png"
     elif image_bytes[:3] == b"\xff\xd8\xff":
         mime_type = "image/jpeg"
     else:
-        # Try to guess from filename
         lower_name = (filename or "").lower()
-        if lower_name.endswith(".png"):
-            mime_type = "image/png"
-        else:
-            mime_type = "image/jpeg"
+        mime_type = "image/png" if lower_name.endswith(".png") else "image/jpeg"
 
-    # Encode to base64
-    image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+    # Compress image to stay under API payload limits (~1MB after compression)
+    # WhatsApp photos can be 5-10MB which breaks Groq/OpenRouter limits
+    image_bytes, mime_type = _compress_image(image_bytes, mime_type)
 
-    # Call Gemini Vision
-    client = genai.Client(api_key=settings.GOOGLE_API_KEY)
+    # Call vision model router (tries Gemini → Groq vision → OpenRouter vision)
+    from services.ai.model_router import router as _router
 
+    vision_prompt = f"{_SYSTEM_PROMPT}\n\nExtract all transaction rows from this image as a JSON array:"
     try:
-        response = client.models.generate_content(
-            model=VISION_MODEL,
-            contents=[
-                genai_types.Content(
-                    parts=[
-                        genai_types.Part(text=_SYSTEM_PROMPT),
-                        genai_types.Part(
-                            inline_data=genai_types.Blob(
-                                mime_type=mime_type,
-                                data=image_b64,
-                            )
-                        ),
-                        genai_types.Part(text="Extract all transaction rows from this image as a JSON array:"),
-                    ]
-                )
-            ],
-            config=genai_types.GenerateContentConfig(
-                temperature=0.1,  # Low temperature for factual extraction
-                max_output_tokens=2048,
-            ),
-        )
+        raw_text = _router.call_vision(image_bytes, mime_type, vision_prompt, max_tokens=2048)
     except Exception as exc:
-        logger.error("Gemini Vision API call failed: %s", exc)
+        logger.error("Vision model router failed: %s", exc)
         raise ValueError(f"Could not analyze image: {exc}") from exc
 
-    raw_text = response.text.strip() if response.text else ""
-
+    raw_text = raw_text.strip()
     if not raw_text:
-        raise ValueError("Gemini returned empty response — image may be unreadable")
+        raise ValueError("Vision model returned empty response — image may be unreadable")
 
     # Strip markdown code blocks if present
     if raw_text.startswith("```"):

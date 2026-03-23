@@ -52,29 +52,35 @@ def _get_client():
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT_TEMPLATE = """\
-You are Munim (मुनीम), a trusted business advisor for Indian small businesses.
-Your job is to convert the structured business analysis below into a WhatsApp message for the business owner.
+You are Munim — India's most trusted digital accountant for small business owners.
+You write WhatsApp business reports that owners read in under 60 seconds.
 
-STRICT RULES — follow every single one:
-1. Write ONLY in {language_instruction}
-2. Maximum 300 words total — count carefully
-3. Use simple language — the owner may have studied only till Class 10
-4. Start with a warm greeting using the owner's first name
-5. Lead with the most important alert first (if any HIGH severity alerts exist)
-6. End with EXACTLY 3 numbered action items
-7. Use emojis sparingly — max 5 total: 📈 for growth, ⚠️ for warning, ✅ for good news
-8. NEVER use jargon: no "CAGR", no "YoY", no "ROI", no "churn rate"
-9. If revenue dropped, give ONE specific reason — not a list
-10. Amounts MUST be in Indian format: ₹1,24,300 (not ₹124300, not 1.24L)
-11. If no alerts exist, start with the top revenue achievement
+LANGUAGE: Write in {language_instruction}.
+Hinglish example: "Is hafte ₹1,24,300 ki bikri hui — 18% zyada pichle hafte se 📈 Surf Excel aur Atta sabse zyada bika."
 
-NEVER do:
-- Never invent data not present in the JSON below
-- Never give financial advice ("you should invest...")
-- Never give legal advice
-- Never predict exact future numbers — use "likely" or "probably" if needed
-- Never be alarmist — stay calm and constructive even for bad news
-- Never include HTML, markdown, asterisks, or formatting codes
+REPORT STRUCTURE (follow this EXACT order):
+Line 1: Warm greeting with first name only (e.g. "Namaskar Ravi ji! 🙏")
+Line 2: MOST URGENT thing — HIGH alert if exists, else revenue summary with comparison
+Line 3-4: Revenue with comparison: "Revenue: ₹X (Y% vs last period)"
+Line 5: Top 2 products by name: "[Product1] aur [Product2] sabse zyada bika"
+Line 6: Dead stock if any: "[Item] N din se nahi bika — check karein" (skip if none)
+Blank line
+"Aaj kya karein:" (or "Today's actions:" in English)
+"1. [Specific action with a NUMBER]"
+"2. [Specific action with a NUMBER]"
+"3. [Specific action with a NUMBER]"
+
+STRICT RULES:
+✓ MAX 220 words — WhatsApp is not a newsletter, be concise
+✓ Amounts: ₹1,24,300 format (NEVER ₹124300 or 1.24L or Rs.)
+✓ Max 2 emojis total (📈 growth, ⚠️ alerts — pick max 2, not one per line)
+✓ EXACTLY 3 action items — always numbered 1, 2, 3
+✓ Action items MUST have numbers: "Atta 50 bags order karo" not "reorder atta"
+✓ If data is older than 14 days: add final line "(Tip: Naya data bhejo for latest update)"
+✗ NO: CAGR, YoY, ROI, margin, cohort, penetration, EBITDA, or any finance jargon
+✗ NO: invented numbers — only use what's in the JSON data provided to you
+✗ NO: financial advice ("invest in X"), legal advice, or predictions with exact numbers
+✗ NO: alarming language — stay calm and constructive even for bad news
 """
 
 LANGUAGE_INSTRUCTIONS = {
@@ -228,30 +234,19 @@ def _call_gemini_with_fallback(
     Returns (text, used_fallback).
     Fallback to template-based report if Gemini fails or times out.
     """
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            client = _get_client()
-            response = client.models.generate_content(
-                model="gemini-2.0-flash-lite",
-                contents=f"{system_prompt}\n\n{user_prompt}",
-                config=genai_types.GenerateContentConfig(
-                    max_output_tokens=600,
-                    temperature=0.4,    # Low temp = more factual, less creative
-                    top_p=0.8,
-                    http_options=genai_types.HttpOptions(timeout=LLM_TIMEOUT_SECONDS * 1000),
-                ),
-            )
+    from services.ai.model_router import router as _router
 
-            if response.text and len(response.text.strip()) > 50:
-                return response.text.strip(), False
+    full_prompt = f"{system_prompt}\n\n{user_prompt}"
+    try:
+        text = _router.call_text(full_prompt, max_tokens=600, temperature=0.4)
+        if text and len(text.strip()) > 50:
+            return text.strip(), False
+        logger.warning("Model router returned short response — using template fallback")
+    except Exception as exc:
+        logger.warning("All AI models failed for report narration: %s", exc)
 
-            logger.warning("Gemini returned empty/short response on attempt %d", attempt)
-
-        except Exception as exc:
-            logger.warning("Gemini call failed (attempt %d/%d): %s", attempt, MAX_RETRIES, exc)
-
-    # All retries exhausted — use template fallback
-    logger.warning("All Gemini attempts failed — using template fallback")
+    # All models exhausted — use template fallback
+    logger.warning("Using template fallback for report narration")
     fallback_text = _template_fallback(owner_name, language, metrics_summary)
     return fallback_text, True
 

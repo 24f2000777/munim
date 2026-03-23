@@ -2,11 +2,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Upload, FileText, Bell,
   Settings, Users, LogOut, TrendingUp, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const ALERTS_SEEN_KEY = "munim_alerts_seen";
 
 const NAV = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -28,6 +31,17 @@ export function Sidebar() {
   const firstName = session?.user?.name?.split(" ")[0] ?? "User";
   const avatar    = session?.user?.image;
   const navItems  = userType === "ca_firm" ? [...NAV, ...CA_NAV] : NAV;
+
+  const [alertsSeen, setAlertsSeen] = useState(true);
+  useEffect(() => {
+    setAlertsSeen(localStorage.getItem(ALERTS_SEEN_KEY) === "true");
+  }, []);
+  useEffect(() => {
+    if (pathname === "/alerts") {
+      localStorage.setItem(ALERTS_SEEN_KEY, "true");
+      setAlertsSeen(true);
+    }
+  }, [pathname]);
 
   return (
     <aside className="hidden md:flex flex-col w-[240px] min-h-screen bg-[#0A0A0C] border-r border-white/[0.06] flex-shrink-0">
@@ -60,7 +74,7 @@ export function Sidebar() {
             >
               <item.icon className={cn("w-[18px] h-[18px] flex-shrink-0", active ? "text-orange-400" : "")} />
               <span className="flex-1">{item.label}</span>
-              {(item as any).dot && !active && (
+              {(item as any).dot && !active && !alertsSeen && (
                 <span className="w-2 h-2 rounded-full bg-orange-500" />
               )}
               {active && <ChevronRight className="w-3.5 h-3.5 opacity-60" />}

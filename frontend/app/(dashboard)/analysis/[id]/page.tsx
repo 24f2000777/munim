@@ -426,6 +426,7 @@ function CustomersSection({ uploadId }: { uploadId: string }) {
                   outerRadius={80}
                   dataKey="value"
                   paddingAngle={2}
+                  label={false}
                 >
                   {segments.map((_, idx) => (
                     <Cell
@@ -434,6 +435,12 @@ function CustomersSection({ uploadId }: { uploadId: string }) {
                     />
                   ))}
                 </Pie>
+                <text x="50%" y="44%" textAnchor="middle" dominantBaseline="middle" className="fill-foreground" style={{ fontSize: 22, fontWeight: 800, fill: "white" }}>
+                  {data.total_customers}
+                </text>
+                <text x="50%" y="56%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: 11, fill: "rgba(255,255,255,0.4)" }}>
+                  customers
+                </text>
                 <Legend
                   iconType="circle"
                   iconSize={8}
@@ -444,11 +451,14 @@ function CustomersSection({ uploadId }: { uploadId: string }) {
                 <Tooltip
                   formatter={(v: any) => [v, "customers"]}
                   contentStyle={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
+                    background: "#1a1a1f",
+                    border: "1px solid rgba(255,255,255,0.1)",
                     borderRadius: "12px",
                     fontSize: 12,
+                    color: "#ffffff",
                   }}
+                  itemStyle={{ color: "#ffffff" }}
+                  labelStyle={{ color: "rgba(255,255,255,0.5)" }}
                 />
               </PieChart>
             </ResponsiveContainer>

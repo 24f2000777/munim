@@ -31,8 +31,16 @@ class Settings(BaseSettings):
     # Database (Neon PostgreSQL)
     DATABASE_URL: str
 
-    # LLM (Google Gemini 2.0 Flash)
+    # LLM — Google Gemini
     GOOGLE_API_KEY: str = ""
+    # LLM — Groq (free: 14,400 req/day) — console.groq.com
+    GROQ_API_KEY: str = ""
+    # LLM — Mistral AI (free tier) — console.mistral.ai
+    MISTRAL_API_KEY: str = ""
+    # LLM — Together AI (free credits) — api.together.ai
+    TOGETHER_API_KEY: str = ""
+    # LLM — OpenRouter (free :free models) — openrouter.ai
+    OPENROUTER_API_KEY: str = ""
 
     # Celery + Redis (Upstash)
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
