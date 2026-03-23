@@ -32,8 +32,6 @@ python-dateutil==2.9.0.post0    # Smart date parsing
 
 # --- Analytics & ML ---
 scikit-learn==1.6.1             # IsolationForest, preprocessing
-prophet==1.1.6                  # Time series forecasting (v2)
-lightgbm==4.6.0                 # Revenue forecasting (v2) (CVE-2024-43598 fixed in 4.6.0)
 
 # --- LLM (Google Gemini 2.0 Flash — Free tier) ---
 google-generativeai==0.8.3
@@ -63,12 +61,5 @@ slowapi==0.1.9                  # Rate limiting for FastAPI
 # --- Email ---
 resend==2.26.0
 
-# --- Dev / Testing ---
-pytest==8.3.4
-pytest-asyncio==0.25.1
-pytest-cov==6.0.0
-httpx==0.28.1                   # Also used for TestClient
-factory-boy==3.3.1              # Test data factories
-freezegun==1.5.1                # Freeze time in tests
-ruff==0.9.2                     # Linting
-mypy==1.14.1                    # Type checking
+# --- Dev / Testing (local only) ---
+# Install separately: pip install pytest pytest-asyncio pytest-cov factory-boy freezegun ruff mypy
