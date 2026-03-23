@@ -36,6 +36,7 @@ lightgbm==4.6.0                 # Revenue forecasting (v2) (CVE-2024-43598 fixed
 
 # --- LLM (Google Gemini 2.0 Flash — Free tier) ---
 google-generativeai==0.8.3
+google-genai==1.10.0
 
 # --- WhatsApp + Conversation ---
 langgraph==0.2.60               # Stateful Q&A conversation engine
