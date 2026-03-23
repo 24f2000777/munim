@@ -22,7 +22,7 @@ import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, field_validator
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,7 +40,7 @@ router = APIRouter()
 class UserSyncRequest(BaseModel):
     """Payload from NextAuth.js after successful Google OAuth."""
     google_id: str
-    email: EmailStr
+    email: str
     name: str
     avatar_url: Optional[str] = None
     user_type: str = "smb_owner"
