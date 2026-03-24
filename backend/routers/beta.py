@@ -9,11 +9,13 @@ Auto-approved + instant WhatsApp welcome message on signup.
 import logging
 import re
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import settings
 from db.neon_client import get_db_session
 
 logger = logging.getLogger(__name__)
@@ -88,6 +90,9 @@ async def join_beta(
     )
     await db.commit()
 
+    # Add to Meta test number approved list (for test number only)
+    await _add_to_meta_test_list(phone)
+
     # Send WhatsApp welcome message
     welcome_sent = _send_welcome(phone, name)
 
@@ -105,6 +110,30 @@ async def join_beta(
         status="ok",
         message="Welcome to Munim beta! Check WhatsApp for your first message. 🚀",
     )
+
+
+async def _add_to_meta_test_list(phone: str) -> None:
+    """
+    Automatically add phone number to Meta test number's approved list.
+    Only works with the test number — has a 5-number limit.
+    Silently fails if already added or limit reached.
+    """
+    if not settings.WHATSAPP_PHONE_NUMBER_ID or not settings.WHATSAPP_ACCESS_TOKEN:
+        return
+    try:
+        url = f"https://graph.facebook.com/v21.0/{settings.WHATSAPP_PHONE_NUMBER_ID}/whatsapp_test_phone_numbers"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                url,
+                json={"phone_number": phone},
+                headers={"Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}"},
+            )
+        if resp.status_code == 200:
+            logger.info("Added %s to Meta test approved list", phone[:6] + "****")
+        else:
+            logger.warning("Meta test list add failed (%s): %s", resp.status_code, resp.text[:100])
+    except Exception as exc:
+        logger.warning("Could not add to Meta test list: %s", exc)
 
 
 def _send_welcome(phone: str, name: str) -> bool:
