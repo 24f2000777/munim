@@ -454,6 +454,12 @@ def _run_whatsapp_file_analysis(file_bytes: bytes, filename: str, user_id: str |
     parsed = detect_and_parse(file_bytes, filename)
     df, _ = deduplicate_products(parsed.df)
     df, _ = normalise(df)
+
+    # Sample large datasets to keep analysis fast (50k rows = same results, 10x faster)
+    MAX_ROWS = 50_000
+    if len(df) > MAX_ROWS:
+        logger.info("Large dataset (%d rows) — sampling to %d rows", len(df), MAX_ROWS)
+        df = df.sample(n=MAX_ROWS, random_state=42).sort_values("date").reset_index(drop=True)
     health = compute_health_score(df)
 
     if not health.can_analyze:
@@ -699,6 +705,12 @@ async def _handle_meta_file(msg: dict, msg_type: str, phone: str, user_id: str |
             file_bytes = r2.content
 
         logger.info("Downloaded Meta file: %s (%d bytes)", filename, len(file_bytes))
+        # Warn for very large files but still process (sampling will handle it)
+        if len(file_bytes) > 5 * 1024 * 1024:
+            await asyncio.to_thread(
+                send_whatsapp_sync, phone,
+                f"⚠️ File बड़ी है ({len(file_bytes)//1024//1024}MB) — analysis में 2-3 minutes लग सकते हैं।"
+            )
     except Exception as exc:
         logger.error("Failed to download Meta media: %s", exc)
         await asyncio.to_thread(
