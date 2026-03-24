@@ -33,6 +33,10 @@ from db.neon_client import get_db_session
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# In-memory deduplication — prevents duplicate processing when Meta retries
+_processed_msg_ids: set[str] = set()
+_MAX_DEDUP_CACHE = 1000  # keep last 1000 message IDs
+
 
 def _app_url() -> str:
     """Return the public app URL — set APP_URL in .env for production."""
@@ -117,6 +121,14 @@ async def receive_webhook(
                 value = change.get("value", {})
                 messages = value.get("messages", [])
                 for msg in messages:
+                    msg_id = msg.get("id", "")
+                    if msg_id and msg_id in _processed_msg_ids:
+                        logger.info("Skipping duplicate message id=%s", msg_id)
+                        continue
+                    if msg_id:
+                        _processed_msg_ids.add(msg_id)
+                        if len(_processed_msg_ids) > _MAX_DEDUP_CACHE:
+                            _processed_msg_ids.pop()
                     await _handle_message(msg, value, db)
     except Exception as exc:
         # Log but always return 200 to Meta to avoid retry storms
