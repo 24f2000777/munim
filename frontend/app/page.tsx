@@ -12,6 +12,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState("");
+  const [slowWarn, setSlowWarn] = useState(false);
 
   async function handleJoin(e: React.FormEvent) {
     e.preventDefault();
@@ -23,19 +24,31 @@ export default function HomePage() {
     }
     const fullPhone = cleaned.startsWith("+") ? cleaned : `+91${cleaned}`;
     setLoading(true);
+    setSlowWarn(false);
+    const slowTimer = setTimeout(() => setSlowWarn(true), 8000);
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000);
       const res = await fetch(`${API_BASE}/api/v1/beta/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: fullPhone, name }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Something went wrong");
       setJoined(true);
     } catch (err: any) {
-      setError(err.message || "Could not join. Please try again.");
+      if (err.name === "AbortError") {
+        setError("Server is waking up — please try again in 30 seconds.");
+      } else {
+        setError(err.message || "Could not join. Please try again.");
+      }
     } finally {
+      clearTimeout(slowTimer);
       setLoading(false);
+      setSlowWarn(false);
     }
   }
 
@@ -231,7 +244,7 @@ export default function HomePage() {
                 disabled={loading}
                 className="w-full inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-lg px-8 py-4 rounded-2xl transition-all shadow-xl shadow-orange-500/25">
                 {loading ? (
-                  <><Loader2 className="w-5 h-5 animate-spin" /> Joining...</>
+                  <><Loader2 className="w-5 h-5 animate-spin" /> {slowWarn ? "Waking server up..." : "Joining..."}</>
                 ) : (
                   <>Join Beta — Get WhatsApp Access <ArrowRight className="w-5 h-5" /></>
                 )}
