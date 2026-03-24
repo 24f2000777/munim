@@ -656,6 +656,79 @@ async def optin_whatsapp(
 # Internal: message handling
 # ---------------------------------------------------------------------------
 
+async def _handle_meta_file(msg: dict, msg_type: str, phone: str, user_id: str | None) -> None:
+    """Download and analyze a document/image sent via Meta Cloud API."""
+    import asyncio
+    from services.whatsapp.sender import send_whatsapp_sync
+
+    media_info = msg.get(msg_type, {})
+    media_id = media_info.get("id", "")
+    filename = media_info.get("filename", f"upload.{'csv' if msg_type == 'document' else 'jpg'}")
+    mime_type = media_info.get("mime_type", "")
+
+    if not media_id:
+        return
+
+    # Acknowledge receipt
+    try:
+        await asyncio.to_thread(
+            send_whatsapp_sync, phone,
+            f"📂 File मिल गया! *{filename}*\n\n⏳ Analysis हो रही है... 30-60 seconds रुकें। ✅"
+        )
+    except Exception:
+        pass
+
+    # Step 1: Get download URL from Meta
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(
+                f"https://graph.facebook.com/v21.0/{media_id}",
+                headers={"Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}"},
+            )
+            r.raise_for_status()
+            download_url = r.json().get("url", "")
+
+        # Step 2: Download the actual file
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            r2 = await client.get(
+                download_url,
+                headers={"Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}"},
+            )
+            r2.raise_for_status()
+            file_bytes = r2.content
+
+        logger.info("Downloaded Meta file: %s (%d bytes)", filename, len(file_bytes))
+    except Exception as exc:
+        logger.error("Failed to download Meta media: %s", exc)
+        await asyncio.to_thread(
+            send_whatsapp_sync, phone,
+            "❌ File download नहीं हो पाया। Please दोबारा try करें।"
+        )
+        return
+
+    # Step 3: Run analytics pipeline
+    try:
+        analysis_summary = await asyncio.to_thread(
+            _run_whatsapp_file_analysis,
+            file_bytes=file_bytes,
+            filename=filename,
+            user_id=user_id,
+        )
+        await asyncio.to_thread(send_whatsapp_sync, phone, analysis_summary)
+    except ValueError as exc:
+        await asyncio.to_thread(
+            send_whatsapp_sync, phone,
+            f"❌ *File analyze नहीं हो पाई*\n\n{exc}\n\nKripaya CSV या Excel file भेजें।"
+        )
+    except Exception as exc:
+        logger.error("Meta file analysis failed: %s", exc, exc_info=True)
+        await asyncio.to_thread(
+            send_whatsapp_sync, phone,
+            "❌ Analysis में error आई। Please file check करके दोबारा भेजें।"
+        )
+
+
 async def _handle_message(msg: dict, value: dict, db: AsyncSession) -> None:
     """
     Process a single incoming WhatsApp message.
@@ -665,8 +738,18 @@ async def _handle_message(msg: dict, value: dict, db: AsyncSession) -> None:
     from_number = msg.get("from", "")
     msg_type = msg.get("type", "")
 
+    # Hash phone for logging (never log raw numbers)
+    phone_hash = hashlib.sha256(from_number.encode()).hexdigest()[:12]
+    phone_e164 = f"+{from_number}" if not from_number.startswith("+") else from_number
+
+    # --- Handle file/document messages ---
+    if msg_type in ("document", "image"):
+        logger.info("Received %s from %s...", msg_type, phone_hash)
+        user_id = await _get_or_create_whatsapp_user(phone_e164, db)
+        await _handle_meta_file(msg, msg_type, phone_e164, user_id)
+        return
+
     if msg_type != "text":
-        # Only handle text messages; ignore audio, image, etc.
         logger.info("Ignoring non-text WhatsApp message type: %s", msg_type)
         return
 
@@ -674,12 +757,7 @@ async def _handle_message(msg: dict, value: dict, db: AsyncSession) -> None:
     if not text_body:
         return
 
-    # Hash phone for logging (never log raw numbers)
-    phone_hash = hashlib.sha256(from_number.encode()).hexdigest()[:12]
     logger.info("Received WhatsApp message from %s...: %r", phone_hash, text_body[:50])
-
-    # Auto-register or look up user — WhatsApp-first: no account needed
-    phone_e164 = f"+{from_number}" if not from_number.startswith("+") else from_number
     user_id = await _get_or_create_whatsapp_user(phone_e164, db)
 
     # Detect intent early so we can log it on the inbound record too
