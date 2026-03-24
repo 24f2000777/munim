@@ -1106,9 +1106,9 @@ def _verify_signature(body: bytes, signature_header: str | None) -> None:
     Verify X-Hub-Signature-256 from Meta.
     Raises HTTP 403 if signature is missing or invalid.
     """
-    app_secret = settings.WHATSAPP_ACCESS_TOKEN  # Meta uses the app secret for HMAC
+    app_secret = settings.WHATSAPP_APP_SECRET
     if not app_secret:
-        return  # Skip verification if WhatsApp not configured (dev mode)
+        return  # Skip verification if app secret not configured (dev mode)
 
     if not signature_header:
         raise HTTPException(
