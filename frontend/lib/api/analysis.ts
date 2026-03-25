@@ -9,7 +9,10 @@ import type {
 } from "@/lib/types";
 
 function tokenConfig(token?: string) {
-  return token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+  // Pass share token as query param (?token=...) so the backend
+  // can prioritise it over the Google session Bearer header
+  // (which the axios interceptor injects automatically).
+  return token ? { params: { token } } : {};
 }
 
 export function useAnalysisMetrics(uploadId: string, token?: string) {
@@ -29,8 +32,7 @@ export function useAnalysisAnomalies(uploadId: string, severity?: Severity, toke
     queryFn:  () =>
       apiClient
         .get(`/analysis/${uploadId}/anomalies`, {
-          params: severity ? { severity } : undefined,
-          ...tokenConfig(token),
+          params: { ...(severity ? { severity } : {}), ...(token ? { token } : {}) },
         })
         .then((r) => r.data),
     enabled: !!uploadId,

@@ -102,9 +102,16 @@ def get_current_user_or_token(
     FastAPI dependency that accepts either a Bearer JWT (from OAuth session)
     or a `?token=` query param (from WhatsApp analysis share links).
 
-    Share tokens are signed with the same NEXTAUTH_SECRET and validated identically.
+    Priority: query param > Bearer header.
+    This is critical because the frontend axios interceptor auto-injects the
+    Google session token into the Authorization header — but for share links
+    the WhatsApp share token (with the correct user_id) must take precedence.
     """
-    raw_token = credentials.credentials if credentials else token
+    # Prefer share token from query param (WhatsApp deep links)
+    if token:
+        return _decode_token(token)
+    # Fall back to Bearer header (normal dashboard sessions)
+    raw_token = credentials.credentials if credentials else None
     if not raw_token:
         raise _UNAUTH
     return _decode_token(raw_token)
