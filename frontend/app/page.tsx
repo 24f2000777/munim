@@ -12,6 +12,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [joined, setJoined] = useState(false);
   const [alreadyJoined, setAlreadyJoined] = useState(false);
+  const [waLink, setWaLink] = useState("");
   const [error, setError] = useState("");
   const [slowWarn, setSlowWarn] = useState(false);
 
@@ -42,6 +43,7 @@ export default function HomePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Something went wrong");
       setAlreadyJoined(data.already_joined === true);
+      setWaLink(data.whatsapp_link || "");
       setJoined(true);
     } catch (err: any) {
       if (err.name === "AbortError") {
@@ -205,16 +207,34 @@ export default function HomePage() {
 
           {joined ? (
             /* Success state */
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-3xl p-10 flex flex-col items-center gap-4">
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-3xl p-10 flex flex-col items-center gap-5">
               <CheckCircle2 className="w-14 h-14 text-emerald-400" />
               <h3 className="text-2xl font-bold text-white">
-                {alreadyJoined ? "Message sent! 👋" : "You're in! 🎉"}
+                {alreadyJoined ? "Welcome back! 👋" : "You're in! 🎉"}
               </h3>
               <p className="text-white/50 text-base leading-relaxed text-center">
                 {alreadyJoined
-                  ? <>You're already registered.<br />Check WhatsApp — we just sent you a message again!</>
-                  : <>Check WhatsApp — we just sent you a message.<br />Reply with your sales file to get started.</>
+                  ? "You're already registered. We sent you a WhatsApp message."
+                  : "You're registered! We sent you a WhatsApp welcome message."
                 }
+              </p>
+              {waLink ? (
+                <a
+                  href={waLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1ebe5d] text-white font-bold text-base px-6 py-4 rounded-2xl transition-all shadow-lg shadow-green-500/20"
+                >
+                  <MessageSquare className="w-5 h-5" />
+                  Open WhatsApp &amp; Start Chatting
+                </a>
+              ) : (
+                <p className="text-white/30 text-sm text-center">
+                  Check your WhatsApp for a welcome message from us.
+                </p>
+              )}
+              <p className="text-white/25 text-xs text-center">
+                Can't find the message? Click the button above to start the chat yourself.
               </p>
             </div>
           ) : (

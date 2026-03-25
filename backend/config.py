@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     WHATSAPP_ACCESS_TOKEN: str = ""
     WHATSAPP_VERIFY_TOKEN: str = ""
     WHATSAPP_APP_SECRET: str = ""  # Meta App Secret — used for HMAC signature verification
+    WHATSAPP_BOT_PHONE: str = ""   # Bot's actual phone number digits (no +), e.g. 919876543210
 
     # WhatsApp — Twilio (alternative, easier for testing)
     TWILIO_ACCOUNT_SID: str = ""

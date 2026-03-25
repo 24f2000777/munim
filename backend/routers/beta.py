@@ -32,6 +32,7 @@ class BetaJoinResponse(BaseModel):
     status: str
     message: str
     already_joined: bool = False
+    whatsapp_link: str = ""   # Direct wa.me link to start chatting with the bot
 
 
 @router.post("/join", response_model=BetaJoinResponse)
@@ -63,6 +64,10 @@ async def join_beta(
 
     name = (payload.name or "").strip() or "Business Owner"
 
+    # Build direct WhatsApp link so user can always start the chat themselves
+    bot_phone = settings.WHATSAPP_BOT_PHONE.lstrip("+") if settings.WHATSAPP_BOT_PHONE else ""
+    wa_link = f"https://wa.me/{bot_phone}?text=Hi" if bot_phone else ""
+
     # Check if already joined
     existing = await db.execute(
         text("SELECT id, welcome_sent FROM beta_waitlist WHERE phone = :phone"),
@@ -82,6 +87,7 @@ async def join_beta(
             status="ok",
             message="Welcome back! We just sent you a WhatsApp message. 👋",
             already_joined=True,
+            whatsapp_link=wa_link,
         )
 
     # Add to whitelist — auto-approved
@@ -114,6 +120,7 @@ async def join_beta(
     return BetaJoinResponse(
         status="ok",
         message="Welcome to Munim beta! Check WhatsApp for your first message. 🚀",
+        whatsapp_link=wa_link,
     )
 
 
