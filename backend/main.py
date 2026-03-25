@@ -73,13 +73,29 @@ async def _keep_alive_ping() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Munim API — environment: %s", settings.APP_ENV)
-    await init_db()
-    # Self-ping to prevent Render free tier sleep (runs in production only)
+    # Init DB in background so the port opens immediately — Render scans
+    # for an open port right away and kills the process if nothing is found.
+    # Neon serverless DB can take 5-10 s to cold-start; blocking here causes
+    # Render's port-scan timeout to fire before the socket is accepting.
+    asyncio.create_task(_init_db_background())
     if settings.APP_ENV != "development":
         asyncio.create_task(_keep_alive_ping())
     yield
     await close_db()
     logger.info("Munim API shut down cleanly")
+
+
+async def _init_db_background() -> None:
+    """Initialise DB in the background so the HTTP port opens immediately."""
+    try:
+        await init_db()
+    except Exception as exc:  # noqa: BLE001
+        logger.error("DB init failed: %s — retrying in 5 s", exc)
+        await asyncio.sleep(5)
+        try:
+            await init_db()
+        except Exception as exc2:
+            logger.critical("DB init failed on retry: %s", exc2)
 
 
 # ---------------------------------------------------------------------------
