@@ -44,11 +44,18 @@ async def join_beta(
     Adds a phone number to the beta whitelist and sends a WhatsApp welcome.
     """
     # Validate phone — must be E.164 format
-    phone = payload.phone.strip()
+    phone = re.sub(r"[\s\-()]", "", payload.phone.strip())
     if not phone.startswith("+"):
         phone = f"+{phone}"
 
-    if not re.match(r"^\+\d{10,15}$", phone):
+    # For Indian numbers: must be +91 followed by exactly 10 digits
+    if phone.startswith("+91"):
+        if not re.match(r"^\+91\d{10}$", phone):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Indian number must be exactly 10 digits. Example: +919876543210",
+            )
+    elif not re.match(r"^\+\d{10,15}$", phone):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid phone number. Use format: +919876543210",
@@ -67,7 +74,7 @@ async def join_beta(
         # Already on waitlist
         if not row.welcome_sent:
             # Try sending welcome again if it failed before
-            _send_welcome(phone, name)
+            await _send_welcome(phone, name)
             await db.execute(
                 text("UPDATE beta_waitlist SET welcome_sent = TRUE WHERE phone = :phone"),
                 {"phone": phone},
@@ -94,7 +101,7 @@ async def join_beta(
     await _add_to_meta_test_list(phone)
 
     # Send WhatsApp welcome message
-    welcome_sent = _send_welcome(phone, name)
+    welcome_sent = await _send_welcome(phone, name)
 
     # Mark welcome as sent
     if welcome_sent:
@@ -136,8 +143,9 @@ async def _add_to_meta_test_list(phone: str) -> None:
         logger.warning("Could not add to Meta test list: %s", exc)
 
 
-def _send_welcome(phone: str, name: str) -> bool:
+async def _send_welcome(phone: str, name: str) -> bool:
     """Send welcome WhatsApp message. Returns True if sent successfully."""
+    import asyncio
     try:
         from services.whatsapp.sender import send_whatsapp_sync
         msg = (
@@ -150,7 +158,7 @@ def _send_welcome(phone: str, name: str) -> bool:
             "60 seconds mein poori analysis aa jayegi — revenue, top products, alerts sab kuch! 📊\n\n"
             "Koi bhi sawaal poochho — main hamesha yahan hoon. 🚀"
         )
-        send_whatsapp_sync(phone, msg)
+        await asyncio.to_thread(send_whatsapp_sync, phone, msg)
         return True
     except Exception as exc:
         logger.warning("Could not send WhatsApp welcome to beta user: %s", exc)

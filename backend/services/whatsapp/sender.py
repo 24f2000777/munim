@@ -34,11 +34,13 @@ def send_whatsapp_sync(phone_number: str, text: str) -> str:
     """
     # --- Meta WhatsApp Business API (preferred — production) ---
     if settings.WHATSAPP_PHONE_NUMBER_ID and settings.WHATSAPP_ACCESS_TOKEN:
-        logger.info("Sending WhatsApp via Meta API")
+        # Meta API requires phone number WITHOUT '+' prefix
+        clean_number = phone_number.lstrip("+")
+        logger.info("Sending WhatsApp via Meta API to %s...", clean_number[:6])
         url = f"https://graph.facebook.com/v21.0/{settings.WHATSAPP_PHONE_NUMBER_ID}/messages"
         payload = {
             "messaging_product": "whatsapp",
-            "to": phone_number,
+            "to": clean_number,
             "type": "text",
             "text": {"body": text[:4096]},
         }

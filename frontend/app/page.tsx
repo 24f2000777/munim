@@ -17,12 +17,14 @@ export default function HomePage() {
   async function handleJoin(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    const cleaned = phone.replace(/\s/g, "");
-    if (!cleaned || cleaned.length < 8) {
-      setError("Please enter a valid WhatsApp number");
+    const cleaned = phone.replace(/[\s\-()]/g, "");
+    // If user entered with country code, strip it for validation
+    const digitsOnly = cleaned.replace(/^\+?91/, "");
+    if (!digitsOnly || digitsOnly.length !== 10 || !/^\d{10}$/.test(digitsOnly)) {
+      setError("Please enter a valid 10-digit Indian mobile number");
       return;
     }
-    const fullPhone = cleaned.startsWith("+") ? cleaned : `+91${cleaned}`;
+    const fullPhone = `+91${digitsOnly}`;
     setLoading(true);
     setSlowWarn(false);
     const slowTimer = setTimeout(() => setSlowWarn(true), 8000);
@@ -231,8 +233,13 @@ export default function HomePage() {
                   <input
                     type="tel"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => {
+                      // Only allow digits and spaces
+                      const val = e.target.value.replace(/[^\d\s]/g, "");
+                      setPhone(val);
+                    }}
                     placeholder="98765 43210"
+                    maxLength={14}
                     required
                     className="flex-1 bg-white/[0.04] border border-white/10 rounded-r-xl px-4 py-3 text-white placeholder:text-white/20 focus:outline-none focus:border-orange-500/50 transition-colors text-base"
                   />
