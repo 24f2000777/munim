@@ -16,6 +16,47 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 
+def send_whatsapp_template(phone_number: str, template_name: str = "hello_world", lang: str = "en_US") -> str:
+    """
+    Send a pre-approved WhatsApp template message.
+    Use this for business-initiated conversations on real numbers.
+    Template messages bypass the 24-hour window restriction.
+    """
+    if not (settings.WHATSAPP_PHONE_NUMBER_ID and settings.WHATSAPP_ACCESS_TOKEN):
+        raise RuntimeError("Meta WhatsApp not configured.")
+
+    clean_number = phone_number.lstrip("+")
+    url = f"https://graph.facebook.com/v21.0/{settings.WHATSAPP_PHONE_NUMBER_ID}/messages"
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": clean_number,
+        "type": "template",
+        "template": {
+            "name": template_name,
+            "language": {"code": lang},
+        },
+    }
+    with httpx.Client(timeout=10.0) as client:
+        response = client.post(
+            url,
+            json=payload,
+            headers={
+                "Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}",
+                "Content-Type": "application/json",
+            },
+        )
+    if response.status_code != 200:
+        logger.error(
+            "Meta template send FAILED: status=%s phone=%s error=%s",
+            response.status_code, clean_number[:6] + "****", response.text[:400]
+        )
+        response.raise_for_status()
+
+    msg_id = response.json().get("messages", [{}])[0].get("id", "unknown")
+    logger.info("WhatsApp template '%s' sent to %s****", template_name, clean_number[:6])
+    return msg_id
+
+
 def send_whatsapp_sync(phone_number: str, text: str) -> str:
     """
     Send a WhatsApp message synchronously.
@@ -54,7 +95,10 @@ def send_whatsapp_sync(phone_number: str, text: str) -> str:
                 },
             )
         if response.status_code != 200:
-            logger.error("Meta WhatsApp error: %s — %s", response.status_code, response.text[:200])
+            logger.error(
+                "Meta WhatsApp SEND FAILED: status=%s phone=%s error=%s",
+                response.status_code, clean_number[:6] + "****", response.text[:400]
+            )
             response.raise_for_status()
 
         msg_id = response.json().get("messages", [{}])[0].get("id", "unknown")

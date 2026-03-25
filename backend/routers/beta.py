@@ -149,10 +149,27 @@ async def _add_to_meta_test_list(phone: str) -> None:
 
 
 async def _send_welcome(phone: str, name: str) -> bool:
-    """Send welcome WhatsApp message. Returns True if sent successfully."""
+    """
+    Send welcome WhatsApp message. Returns True if sent successfully.
+
+    Strategy:
+    1. Try 'hello_world' template (pre-approved by Meta, works on any real number
+       even for business-initiated conversations with no prior chat history)
+    2. Fall back to free-text (works if user has messaged bot first within 24h)
+    """
     import asyncio
+    from services.whatsapp.sender import send_whatsapp_template, send_whatsapp_sync
+
+    # Step 1: Template message (works for new conversations on real numbers)
     try:
-        from services.whatsapp.sender import send_whatsapp_sync
+        await asyncio.to_thread(send_whatsapp_template, phone, "hello_world", "en_US")
+        logger.info("Welcome template sent to %s****", phone[:6])
+        return True
+    except Exception as exc:
+        logger.warning("Template send failed for %s****: %s — trying free text", phone[:6], exc)
+
+    # Step 2: Free-text fallback (works if user already chatted within 24h)
+    try:
         msg = (
             f"🙏 *Namaskar {name}!*\n\n"
             "Main *Munim* hoon — aapka AI business advisor. 🤖\n\n"
@@ -166,5 +183,5 @@ async def _send_welcome(phone: str, name: str) -> bool:
         await asyncio.to_thread(send_whatsapp_sync, phone, msg)
         return True
     except Exception as exc:
-        logger.warning("Could not send WhatsApp welcome to beta user: %s", exc)
+        logger.warning("Free-text welcome also failed for %s****: %s", phone[:6], exc)
         return False
