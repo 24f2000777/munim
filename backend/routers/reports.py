@@ -316,69 +316,20 @@ async def send_report_whatsapp(
 
 async def _send_whatsapp_message(phone_number: str, text: str) -> str:
     """
-    Send a WhatsApp message via Twilio (preferred) or Meta Business API.
-    Twilio is used when TWILIO_ACCOUNT_SID is set.
-    Meta is used when WHATSAPP_ACCESS_TOKEN is set.
-    Returns a message ID string.
+    Send a WhatsApp message using the unified sender (Meta-first, Twilio fallback).
+    Delegates to services/whatsapp/sender.py which handles provider selection correctly.
     """
-
-    # --- Twilio (sandbox-friendly, no business verification needed) ----------
-    if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN:
-        logger.info("Sending WhatsApp via Twilio to %s", phone_number)
-
-        # Twilio expects "whatsapp:+91XXXXXXXXXX" format
-        to_wa   = f"whatsapp:{phone_number}" if not phone_number.startswith("whatsapp:") else phone_number
-        from_wa = settings.TWILIO_WHATSAPP_FROM
-
-        url = f"https://api.twilio.com/2010-04-01/Accounts/{settings.TWILIO_ACCOUNT_SID}/Messages.json"
-
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(
-                url,
-                data={"From": from_wa, "To": to_wa, "Body": text[:1600]},
-                auth=(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN),
-            )
-
-        if response.status_code not in (200, 201):
-            logger.error("Twilio error: %s %s", response.status_code, response.text)
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Twilio error: {response.json().get('message', 'Unknown error')}",
-            )
-
-        return response.json().get("sid", "twilio_ok")
-
-    # --- Meta WhatsApp Business API ------------------------------------------
-    if settings.WHATSAPP_PHONE_NUMBER_ID and settings.WHATSAPP_ACCESS_TOKEN:
-        logger.info("Sending WhatsApp via Meta API to %s", phone_number)
-
-        url = f"https://graph.facebook.com/v21.0/{settings.WHATSAPP_PHONE_NUMBER_ID}/messages"
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": phone_number,
-            "type": "text",
-            "text": {"body": text[:4096]},
-        }
-
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(
-                url,
-                json=payload,
-                headers={
-                    "Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}",
-                    "Content-Type": "application/json",
-                },
-            )
-
-        if response.status_code != 200:
-            logger.error("Meta WhatsApp API error: %s %s", response.status_code, response.text)
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Failed to send WhatsApp message. Please try again.",
-            )
-
-        return response.json().get("messages", [{}])[0].get("id", "unknown")
-
-    # --- Not configured -------------------------------------------------------
-    logger.warning("WhatsApp not configured — set TWILIO_ACCOUNT_SID or WHATSAPP_ACCESS_TOKEN in .env")
-    return "mock_message_id"
+    import asyncio
+    from services.whatsapp.sender import send_whatsapp_sync
+    try:
+        msg_id = await asyncio.to_thread(send_whatsapp_sync, phone_number, text)
+        return msg_id
+    except RuntimeError as exc:
+        logger.warning("WhatsApp not configured: %s", exc)
+        return "not_configured"
+    except Exception as exc:
+        logger.error("Failed to send WhatsApp message: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to send WhatsApp message: {exc}",
+        )

@@ -5,9 +5,11 @@ Initialises the application, registers routers, configures middleware,
 and sets up error handling and monitoring.
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
+import httpx
 import sentry_sdk
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,10 +53,30 @@ limiter = Limiter(key_func=get_remote_address)
 # ---------------------------------------------------------------------------
 # Lifespan (startup / shutdown)
 # ---------------------------------------------------------------------------
+async def _keep_alive_ping() -> None:
+    """
+    Ping own /health every 13 min to prevent Render free tier from sleeping.
+    Render spins down after 15 min of inactivity — self-ping avoids that entirely.
+    """
+    await asyncio.sleep(90)           # Let startup finish first
+    while True:
+        try:
+            url = f"{settings.APP_URL.rstrip('/')}/health"
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(url)
+            logger.info("Keep-alive ping → %d", resp.status_code)
+        except Exception as exc:
+            logger.warning("Keep-alive ping failed: %s", exc)
+        await asyncio.sleep(13 * 60)  # 13 minutes
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Munim API — environment: %s", settings.APP_ENV)
     await init_db()
+    # Self-ping to prevent Render free tier sleep (runs in production only)
+    if settings.APP_ENV != "development":
+        asyncio.create_task(_keep_alive_ping())
     yield
     await close_db()
     logger.info("Munim API shut down cleanly")

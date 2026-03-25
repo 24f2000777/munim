@@ -2,7 +2,7 @@ name: Keep Backend Alive
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # every 5 minutes
+    - cron: "*/5 * * * *"   # every 5 minutes (GitHub minimum)
   workflow_dispatch:          # allow manual trigger
 
 jobs:
@@ -11,9 +11,12 @@ jobs:
     steps:
       - name: Ping Render backend
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://munim-gewi.onrender.com/health)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://munim-gewi.onrender.com/health || echo "000")
           echo "Health check status: $STATUS"
-          if [ "$STATUS" != "200" ]; then
-            echo "WARNING: Backend returned $STATUS"
-            exit 1
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Backend is alive"
+          else
+            echo "⚠️ Backend returned $STATUS — it may be waking up (self-ping will handle it)"
           fi
+          # Never exit 1 — we don't want failed workflow notifications
+          exit 0

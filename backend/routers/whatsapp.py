@@ -491,6 +491,56 @@ def _run_whatsapp_file_analysis(file_bytes: bytes, filename: str, user_id: str |
                 try: return float(v)
                 except: return 0.0
 
+            # Revenue trend — daily aggregation for the chart
+            import pandas as _pd
+            rev_by_date = (
+                df.groupby("date")["amount"].sum()
+                .reset_index()
+                .sort_values("date")
+                .tail(60)           # Up to 60 data points in chart
+            )
+            revenue_trend = [
+                {
+                    "date": str(row["date"].date() if hasattr(row["date"], "date") else row["date"]),
+                    "revenue": float(row["amount"]),
+                }
+                for _, row in rev_by_date.iterrows()
+            ]
+
+            # Rule-based AI insights (no extra LLM call needed)
+            ai_insights: list[dict] = []
+            _cp = metrics.revenue.change_pct
+            if _cp is not None:
+                if float(_cp) >= 10:
+                    ai_insights.append({
+                        "type": "celebration",
+                        "title": "Strong Revenue Growth",
+                        "insight": f"Revenue grew {float(_cp):+.1f}% vs last period. Your business is gaining momentum!",
+                        "priority": 1,
+                    })
+                elif float(_cp) <= -10:
+                    ai_insights.append({
+                        "type": "warning",
+                        "title": "Revenue Decline Alert",
+                        "insight": f"Revenue dropped {abs(float(_cp)):.1f}% vs last period. Review pricing or top-product stock levels.",
+                        "priority": 1,
+                    })
+            if metrics.dead_stock:
+                ai_insights.append({
+                    "type": "action",
+                    "title": f"{len(metrics.dead_stock)} Slow-Moving Products",
+                    "insight": "These items haven't sold in 14+ days. Consider discounts, bundles, or promotions to free up stock.",
+                    "priority": 2,
+                })
+            if metrics.top_products:
+                _top = metrics.top_products[0]
+                ai_insights.append({
+                    "type": "opportunity",
+                    "title": f"Top Seller: {_top.name}",
+                    "insight": f"Your best product earns ₹{_float(_top.revenue):,.0f}. Ensure stock is always available to maximise sales.",
+                    "priority": 3,
+                })
+
             serialized_metrics = {
                 "current_revenue": _float(metrics.revenue.current_period),
                 "previous_revenue": _float(metrics.revenue.previous_period),
@@ -500,7 +550,18 @@ def _run_whatsapp_file_analysis(file_bytes: bytes, filename: str, user_id: str |
                     {"name": p.name, "revenue": _float(p.revenue), "units_sold": p.units_sold}
                     for p in (metrics.top_products or [])
                 ],
-                "dead_stock": [{"name": p.product} for p in (metrics.dead_stock or [])],
+                # dead_stock: use "product" key + days_since_last_sale to match frontend types
+                "dead_stock": [
+                    {"product": p.product, "days_since_last_sale": p.days_since_last_sale}
+                    for p in (metrics.dead_stock or [])
+                ],
+                "dead_stock_count": len(metrics.dead_stock or []),
+                "revenue_trend": revenue_trend,
+                "ai_insights": ai_insights,
+                "period_label": (
+                    f"{metrics.period_start.date()} → {metrics.period_end.date()}"
+                    if metrics.period_start and metrics.period_end else "This period"
+                ),
             }
 
             serialized_anomalies = {
@@ -585,31 +646,33 @@ def _run_whatsapp_file_analysis(file_bytes: bytes, filename: str, user_id: str |
 
     msg = (
         f"✅ *Analysis Complete!*\n"
-        f"📅 Period: {period_start} → {period_end}\n"
-        f"📊 Health Score: {health.score}/100 ({health.grade})\n\n"
+        f"📅 {period_start} → {period_end} | Score: *{health.score}/100* ({health.grade})\n\n"
 
         f"💰 *Revenue*\n"
-        f"   ₹{rev:,.0f} {change_str} {trend_emoji}\n\n"
+        f"₹{rev:,.0f} {change_str} {trend_emoji}\n\n"
 
         f"🏆 *Top Products*\n{prod_lines}\n\n"
 
-        f"👥 *Customers:* {total_cust}\n\n"
-
-        f"⚠️ *Alerts:* {high_alerts} high severity\n"
+        f"👥 *Customers:* {total_cust}"
     )
 
     if high_alerts > 0 and anomaly_report.anomalies:
         top_alert = anomaly_report.anomalies[0]
-        msg += f"   🔴 {top_alert.title}: {top_alert.explanation[:80]}\n"
+        msg += (
+            f"\n\n⚠️ *{high_alerts} High Alert{'s' if high_alerts > 1 else ''}*\n"
+            f"🔴 {top_alert.title}\n"
+            f"{top_alert.explanation[:100]}"
+        )
+    else:
+        msg += f"\n\n✅ *Alerts:* Sab theek hai!"
 
     if dead:
-        msg += f"\n🛑 *Dead Stock:*\n{dead_lines}\n"
+        msg += f"\n\n🛑 *Dead Stock ({len(dead)} items):*\n{dead_lines}"
 
     msg += (
-        f"\n💬 कोई भी सवाल पूछें — data के बारे में कुछ भी!\n\n"
-        f"📊 *Full charts & dashboard:*\n"
-        f"{_deep_link if _deep_link else _app_url()}\n\n"
-        f"— Munim (आपका digital मुनीम)"
+        f"\n\n💬 Koi bhi sawaal poochho — main yahan hoon!\n\n"
+        f"📊 *Full dashboard (charts + AI insights):*\n"
+        f"{_deep_link if _deep_link else _app_url()}"
     )
 
     return msg
@@ -1143,9 +1206,23 @@ RESPONSE RULES (follow every one):
 9. If genuinely cannot answer (e.g. tax advice, predictions) → say exactly why and redirect helpfully
 10. Never say "I don't know" — either answer from data, explain the limitation, or redirect constructively
 
+WHATSAPP FORMATTING (mandatory):
+- Use *bold* around key numbers and section headers: *₹1,80,000*, *Top Product*, *Alert*
+- Separate each point or section with a blank line (empty line between paragraphs)
+- Use • for bullet lists (not - or *)
+- NEVER write everything in one paragraph — always break into short lines
+- Example of good format:
+  *Revenue this month:* ₹1,80,000 📈
+
+  *Top 3 products:*
+  • Widget A — ₹80,000
+  • Widget B — ₹50,000
+
+  Last period mein ₹1,60,000 tha — 12.5% growth! ✅
+
 Owner's message: {user_message}
 
-Reply as Munim now (Hinglish, short, WhatsApp-friendly):"""
+Reply as Munim now (Hinglish, short, properly formatted for WhatsApp):"""
 
 
 def _build_ai_failure_response(analysis: dict | None, error: Exception) -> str:
