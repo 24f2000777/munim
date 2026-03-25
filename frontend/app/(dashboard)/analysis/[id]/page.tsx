@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   useAnalysisMetrics,
   useAnalysisAnomalies,
@@ -175,8 +176,8 @@ function SectionTitle({ children, icon }: { children: React.ReactNode; icon?: Re
 
 // ── Revenue + Products Charts ──────────────────────────────────────────────────
 
-function ChartsSection({ uploadId }: { uploadId: string }) {
-  const { data, isLoading } = useAnalysisMetrics(uploadId);
+function ChartsSection({ uploadId, token }: { uploadId: string; token?: string }) {
+  const { data, isLoading } = useAnalysisMetrics(uploadId, token);
 
   if (isLoading) {
     return (
@@ -302,8 +303,8 @@ function ChartsSection({ uploadId }: { uploadId: string }) {
 
 // ── AI Insights ────────────────────────────────────────────────────────────────
 
-function AiInsightsSection({ uploadId }: { uploadId: string }) {
-  const { data, isLoading } = useAnalysisMetrics(uploadId);
+function AiInsightsSection({ uploadId, token }: { uploadId: string; token?: string }) {
+  const { data, isLoading } = useAnalysisMetrics(uploadId, token);
 
   return (
     <div>
@@ -371,8 +372,8 @@ function AiInsightsSection({ uploadId }: { uploadId: string }) {
 
 // ── Customer Segments ─────────────────────────────────────────────────────────
 
-function CustomersSection({ uploadId }: { uploadId: string }) {
-  const { data, isLoading } = useAnalysisCustomers(uploadId);
+function CustomersSection({ uploadId, token }: { uploadId: string; token?: string }) {
+  const { data, isLoading } = useAnalysisCustomers(uploadId, token);
 
   if (isLoading) {
     return (
@@ -516,8 +517,8 @@ function CustomersSection({ uploadId }: { uploadId: string }) {
 
 // ── Anomalies ─────────────────────────────────────────────────────────────────
 
-function AnomaliesSection({ uploadId }: { uploadId: string }) {
-  const { data, isLoading } = useAnalysisAnomalies(uploadId);
+function AnomaliesSection({ uploadId, token }: { uploadId: string; token?: string }) {
+  const { data, isLoading } = useAnalysisAnomalies(uploadId, undefined, token);
 
   if (isLoading) {
     return (
@@ -611,8 +612,8 @@ function AnomaliesSection({ uploadId }: { uploadId: string }) {
 
 // ── Dead Stock ────────────────────────────────────────────────────────────────
 
-function DeadStockSection({ uploadId }: { uploadId: string }) {
-  const { data, isLoading } = useAnalysisMetrics(uploadId);
+function DeadStockSection({ uploadId, token }: { uploadId: string; token?: string }) {
+  const { data, isLoading } = useAnalysisMetrics(uploadId, token);
 
   if (isLoading || !data || data.dead_stock_count === 0) return null;
 
@@ -861,7 +862,9 @@ type Params = Promise<{ id: string }>;
 
 export default function AnalysisPage({ params }: { params: Params }) {
   const { id: uploadId } = use(params);
-  const { data: metrics, isLoading: metricsLoading } = useAnalysisMetrics(uploadId);
+  const searchParams = useSearchParams();
+  const shareToken = searchParams.get("token") ?? undefined;
+  const { data: metrics, isLoading: metricsLoading } = useAnalysisMetrics(uploadId, shareToken);
   const [showReport, setShowReport] = useState(false);
 
   const isUp = metrics?.revenue?.trend === "up";
@@ -964,26 +967,26 @@ export default function AnalysisPage({ params }: { params: Params }) {
 
       {/* Charts */}
       <div className="mb-6">
-        <ChartsSection uploadId={uploadId} />
+        <ChartsSection uploadId={uploadId} token={shareToken} />
       </div>
 
       {/* AI Insights */}
       <div className="mb-6">
-        <AiInsightsSection uploadId={uploadId} />
+        <AiInsightsSection uploadId={uploadId} token={shareToken} />
       </div>
 
       {/* Customer Segments */}
       <div className="mb-6">
-        <CustomersSection uploadId={uploadId} />
+        <CustomersSection uploadId={uploadId} token={shareToken} />
       </div>
 
       {/* Anomalies */}
       <div className="mb-6">
-        <AnomaliesSection uploadId={uploadId} />
+        <AnomaliesSection uploadId={uploadId} token={shareToken} />
       </div>
 
       {/* Dead Stock */}
-      <DeadStockSection uploadId={uploadId} />
+      <DeadStockSection uploadId={uploadId} token={shareToken} />
     </div>
   );
 }

@@ -8,33 +8,42 @@ import type {
   Severity,
 } from "@/lib/types";
 
-export function useAnalysisMetrics(uploadId: string) {
+function tokenConfig(token?: string) {
+  return token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+}
+
+export function useAnalysisMetrics(uploadId: string, token?: string) {
   return useQuery<MetricsResponse>({
-    queryKey: ["analysis", uploadId, "metrics"],
+    queryKey: ["analysis", uploadId, "metrics", token],
     queryFn:  () =>
-      apiClient.get(`/analysis/${uploadId}/metrics`).then((r) => r.data),
+      apiClient
+        .get(`/analysis/${uploadId}/metrics`, tokenConfig(token))
+        .then((r) => r.data),
     enabled:  !!uploadId,
   });
 }
 
-export function useAnalysisAnomalies(uploadId: string, severity?: Severity) {
+export function useAnalysisAnomalies(uploadId: string, severity?: Severity, token?: string) {
   return useQuery<AnomaliesResponse>({
-    queryKey: ["analysis", uploadId, "anomalies", severity],
+    queryKey: ["analysis", uploadId, "anomalies", severity, token],
     queryFn:  () =>
       apiClient
         .get(`/analysis/${uploadId}/anomalies`, {
           params: severity ? { severity } : undefined,
+          ...tokenConfig(token),
         })
         .then((r) => r.data),
     enabled: !!uploadId,
   });
 }
 
-export function useAnalysisCustomers(uploadId: string) {
+export function useAnalysisCustomers(uploadId: string, token?: string) {
   return useQuery<CustomersResponse>({
-    queryKey: ["analysis", uploadId, "customers"],
+    queryKey: ["analysis", uploadId, "customers", token],
     queryFn:  () =>
-      apiClient.get(`/analysis/${uploadId}/customers`).then((r) => r.data),
+      apiClient
+        .get(`/analysis/${uploadId}/customers`, tokenConfig(token))
+        .then((r) => r.data),
     enabled:  !!uploadId,
   });
 }

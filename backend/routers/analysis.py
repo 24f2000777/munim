@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth import AuthenticatedUser, get_current_user
+from auth import AuthenticatedUser, get_current_user, get_current_user_or_token
 from db.neon_client import get_db_session
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ router = APIRouter()
 @router.get("/{upload_id}")
 async def get_full_analysis(
     upload_id: str,
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(get_current_user_or_token),
     db: AsyncSession = Depends(get_db_session),
 ):
     """Full analysis bundle — metrics + anomalies + customers + seasonality."""
@@ -58,7 +58,7 @@ async def get_full_analysis(
 @router.get("/{upload_id}/metrics")
 async def get_metrics(
     upload_id: str,
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(get_current_user_or_token),
     db: AsyncSession = Depends(get_db_session),
 ):
     """Revenue metrics, top products by revenue, and dead stock items."""
@@ -89,7 +89,7 @@ async def get_metrics(
 async def get_anomalies(
     upload_id: str,
     severity: Optional[str] = Query(None, description="Filter by severity: HIGH, MEDIUM, LOW"),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(get_current_user_or_token),
     db: AsyncSession = Depends(get_db_session),
 ):
     """Anomaly alerts sorted by severity (HIGH first)."""
@@ -120,7 +120,7 @@ async def get_anomalies(
 async def get_customers(
     upload_id: str,
     segment: Optional[str] = Query(None, description="Filter by segment name"),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: AuthenticatedUser = Depends(get_current_user_or_token),
     db: AsyncSession = Depends(get_db_session),
 ):
     """RFM customer segments and top customers by revenue."""

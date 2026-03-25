@@ -11,10 +11,11 @@ Security notes:
 """
 
 import logging
-from typing import Annotated
+from datetime import datetime, timedelta, timezone
+from typing import Annotated, Optional
 
 import jwt
-from fastapi import Depends, HTTPException, Security, status
+from fastapi import Depends, HTTPException, Query, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from config import get_settings
@@ -22,9 +23,16 @@ from config import get_settings
 logger = logging.getLogger(__name__)
 
 _bearer = HTTPBearer(auto_error=True)
+_bearer_optional = HTTPBearer(auto_error=False)
 
 # Algorithm allowlist — must be explicit to prevent confusion attacks
 _ALLOWED_ALGORITHMS = ["HS256"]
+
+_UNAUTH = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Not authenticated",
+    headers={"WWW-Authenticate": "Bearer"},
+)
 
 
 class AuthenticatedUser:
@@ -39,27 +47,12 @@ class AuthenticatedUser:
         return f"<AuthenticatedUser user_id={self.user_id!r} email={self.email!r}>"
 
 
-def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials, Security(_bearer)],
-) -> AuthenticatedUser:
-    """
-    FastAPI dependency that validates the Bearer JWT and returns the authenticated user.
-
-    Raises HTTP 401 on any validation failure — never leaks the reason to the client
-    (logged server-side only) to prevent oracle attacks.
-    """
+def _decode_token(raw_token: str) -> AuthenticatedUser:
+    """Decode and validate a JWT, returning an AuthenticatedUser. Raises HTTP 401 on failure."""
     settings = get_settings()
-    token = credentials.credentials
-
-    _UNAUTH = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Not authenticated",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
     try:
         payload = jwt.decode(
-            token,
+            raw_token,
             settings.NEXTAUTH_SECRET,
             algorithms=_ALLOWED_ALGORITHMS,
             options={
@@ -87,3 +80,50 @@ def get_current_user(
         raise _UNAUTH
 
     return AuthenticatedUser(user_id=user_id, email=email, name=name)
+
+
+def get_current_user(
+    credentials: Annotated[HTTPAuthorizationCredentials, Security(_bearer)],
+) -> AuthenticatedUser:
+    """
+    FastAPI dependency that validates the Bearer JWT and returns the authenticated user.
+
+    Raises HTTP 401 on any validation failure — never leaks the reason to the client
+    (logged server-side only) to prevent oracle attacks.
+    """
+    return _decode_token(credentials.credentials)
+
+
+def get_current_user_or_token(
+    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Security(_bearer_optional)] = None,
+    token: Optional[str] = Query(None),
+) -> AuthenticatedUser:
+    """
+    FastAPI dependency that accepts either a Bearer JWT (from OAuth session)
+    or a `?token=` query param (from WhatsApp analysis share links).
+
+    Share tokens are signed with the same NEXTAUTH_SECRET and validated identically.
+    """
+    raw_token = credentials.credentials if credentials else token
+    if not raw_token:
+        raise _UNAUTH
+    return _decode_token(raw_token)
+
+
+def generate_analysis_token(upload_id: str, user_id: str) -> str:
+    """
+    Generate a signed JWT share token for a specific analysis.
+    Valid for 7 days. Used in WhatsApp deep links.
+    """
+    settings = get_settings()
+    now = datetime.now(tz=timezone.utc)
+    payload = {
+        "sub": user_id,
+        "email": "whatsapp@munim.ai",
+        "name": "WhatsApp User",
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(days=7)).timestamp()),
+        "type": "analysis_share",
+        "upload_id": upload_id,
+    }
+    return jwt.encode(payload, settings.NEXTAUTH_SECRET, algorithm="HS256")

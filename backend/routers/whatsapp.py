@@ -473,6 +473,9 @@ def _run_whatsapp_file_analysis(file_bytes: bytes, filename: str, user_id: str |
     anomaly_report = detect_anomalies(df)
     customer_segments = compute_rfm(df)
 
+    # Deep link to the specific analysis (populated after DB save)
+    _deep_link: str | None = None
+
     # Store results if user_id known
     if user_id:
         try:
@@ -549,6 +552,11 @@ def _run_whatsapp_file_analysis(file_bytes: bytes, filename: str, user_id: str |
                     "customers": json.dumps(serialized_customers),
                 })
                 conn.commit()
+
+            # Generate a share token for the deep link
+            from auth import generate_analysis_token
+            _share_token = generate_analysis_token(upload_id, user_id)
+            _deep_link = f"{_app_url()}/analysis/{upload_id}?token={_share_token}"
         except Exception as exc:
             logger.warning("Could not store WhatsApp file analysis in DB: %s", exc)
 
@@ -600,7 +608,7 @@ def _run_whatsapp_file_analysis(file_bytes: bytes, filename: str, user_id: str |
     msg += (
         f"\n💬 कोई भी सवाल पूछें — data के बारे में कुछ भी!\n\n"
         f"📊 *Full charts & dashboard:*\n"
-        f"{_app_url()}\n\n"
+        f"{_deep_link if _deep_link else _app_url()}\n\n"
         f"— Munim (आपका digital मुनीम)"
     )
 
