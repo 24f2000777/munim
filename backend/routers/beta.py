@@ -76,16 +76,10 @@ async def join_beta(
     row = existing.fetchone()
 
     if row:
-        # Already on waitlist — always resend so user always gets a message
-        await _send_welcome(phone, name)
-        await db.execute(
-            text("UPDATE beta_waitlist SET welcome_sent = TRUE WHERE phone = :phone"),
-            {"phone": phone},
-        )
-        await db.commit()
+        # Already on waitlist — return the WhatsApp link so user can open chat themselves
         return BetaJoinResponse(
             status="ok",
-            message="Welcome back! We just sent you a WhatsApp message. 👋",
+            message="Welcome back! Click below to open WhatsApp and chat with Munim.",
             already_joined=True,
             whatsapp_link=wa_link,
         )
@@ -101,25 +95,11 @@ async def join_beta(
     )
     await db.commit()
 
-    # Add to Meta test number approved list (for test number only)
-    await _add_to_meta_test_list(phone)
-
-    # Send WhatsApp welcome message
-    welcome_sent = await _send_welcome(phone, name)
-
-    # Mark welcome as sent
-    if welcome_sent:
-        await db.execute(
-            text("UPDATE beta_waitlist SET welcome_sent = TRUE WHERE phone = :phone"),
-            {"phone": phone},
-        )
-        await db.commit()
-
-    logger.info("Beta signup: phone=%s name=%s welcome_sent=%s", phone[:6] + "****", name, welcome_sent)
+    logger.info("Beta signup: phone=%s name=%s", phone[:6] + "****", name)
 
     return BetaJoinResponse(
         status="ok",
-        message="Welcome to Munim beta! Check WhatsApp for your first message. 🚀",
+        message="You're in! Open WhatsApp and say Hi to get started.",
         whatsapp_link=wa_link,
     )
 

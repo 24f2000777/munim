@@ -202,7 +202,7 @@ export default function HomePage() {
             Start on WhatsApp.<br />Right now.
           </h2>
           <p className="text-white/40 text-base mb-10 leading-relaxed">
-            Enter your WhatsApp number. We'll send you a welcome message — then just send your sales file to get your first analysis.
+            Enter your WhatsApp number to join the beta — then open WhatsApp and send your sales file to get your first analysis in 60 seconds.
           </p>
 
           {joined ? (
@@ -214,8 +214,8 @@ export default function HomePage() {
               </h3>
               <p className="text-white/50 text-base leading-relaxed text-center">
                 {alreadyJoined
-                  ? "You're already registered. We sent you a WhatsApp message."
-                  : "You're registered! We sent you a WhatsApp welcome message."
+                  ? "You're already on the beta. Click below to open WhatsApp and chat with Munim."
+                  : "You're registered! Now open WhatsApp, say Hi, and send your sales file to get started."
                 }
               </p>
               {waLink ? (
@@ -223,18 +223,14 @@ export default function HomePage() {
                   href={waLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1ebe5d] text-white font-bold text-base px-6 py-4 rounded-2xl transition-all shadow-lg shadow-green-500/20"
+                  className="w-full inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1ebe5d] text-white font-bold text-lg px-6 py-4 rounded-2xl transition-all shadow-lg shadow-green-500/20 mt-1"
                 >
                   <MessageSquare className="w-5 h-5" />
-                  Open WhatsApp &amp; Start Chatting
+                  Open WhatsApp &amp; Start Now →
                 </a>
-              ) : (
-                <p className="text-white/30 text-sm text-center">
-                  Check your WhatsApp for a welcome message from us.
-                </p>
-              )}
-              <p className="text-white/25 text-xs text-center">
-                Can't find the message? Click the button above to start the chat yourself.
+              ) : null}
+              <p className="text-white/30 text-xs text-center">
+                Send "Hi" to start • Then upload your sales CSV/Excel file • Get analysis in 60 sec
               </p>
             </div>
           ) : (
