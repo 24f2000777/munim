@@ -11,6 +11,7 @@ export default function HomePage() {
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [joined, setJoined] = useState(false);
+  const [alreadyJoined, setAlreadyJoined] = useState(false);
   const [error, setError] = useState("");
   const [slowWarn, setSlowWarn] = useState(false);
 
@@ -40,6 +41,7 @@ export default function HomePage() {
       clearTimeout(timeout);
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Something went wrong");
+      setAlreadyJoined(data.already_joined === true);
       setJoined(true);
     } catch (err: any) {
       if (err.name === "AbortError") {
@@ -205,10 +207,14 @@ export default function HomePage() {
             /* Success state */
             <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-3xl p-10 flex flex-col items-center gap-4">
               <CheckCircle2 className="w-14 h-14 text-emerald-400" />
-              <h3 className="text-2xl font-bold text-white">You're in! 🎉</h3>
-              <p className="text-white/50 text-base leading-relaxed">
-                Check WhatsApp — we just sent you a message.<br />
-                Reply with your sales file to get started.
+              <h3 className="text-2xl font-bold text-white">
+                {alreadyJoined ? "Message sent! 👋" : "You're in! 🎉"}
+              </h3>
+              <p className="text-white/50 text-base leading-relaxed text-center">
+                {alreadyJoined
+                  ? <>You're already registered.<br />Check WhatsApp — we just sent you a message again!</>
+                  : <>Check WhatsApp — we just sent you a message.<br />Reply with your sales file to get started.</>
+                }
               </p>
             </div>
           ) : (

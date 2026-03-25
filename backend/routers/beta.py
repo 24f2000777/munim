@@ -71,18 +71,16 @@ async def join_beta(
     row = existing.fetchone()
 
     if row:
-        # Already on waitlist
-        if not row.welcome_sent:
-            # Try sending welcome again if it failed before
-            await _send_welcome(phone, name)
-            await db.execute(
-                text("UPDATE beta_waitlist SET welcome_sent = TRUE WHERE phone = :phone"),
-                {"phone": phone},
-            )
-            await db.commit()
+        # Already on waitlist — always resend so user always gets a message
+        await _send_welcome(phone, name)
+        await db.execute(
+            text("UPDATE beta_waitlist SET welcome_sent = TRUE WHERE phone = :phone"),
+            {"phone": phone},
+        )
+        await db.commit()
         return BetaJoinResponse(
             status="ok",
-            message="You're already on the beta! Check WhatsApp.",
+            message="Welcome back! We just sent you a WhatsApp message. 👋",
             already_joined=True,
         )
 
