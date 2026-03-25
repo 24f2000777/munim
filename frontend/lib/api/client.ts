@@ -15,10 +15,13 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use(async (config) => {
-  const session = await getSession();
-  const token   = (session as any)?.accessToken;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  // Only add session token if a token hasn't already been set (e.g. share token from URL)
+  if (!config.headers.Authorization) {
+    const session = await getSession();
+    const token   = (session as any)?.accessToken;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
   }
   return config;
 });
