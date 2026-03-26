@@ -64,9 +64,7 @@ export default function HomePage() {
       <nav className="fixed top-0 inset-x-0 z-50 bg-[#0D0D0F]/80 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/30">
-              <span className="text-white text-xs font-bold">म</span>
-            </div>
+            <img src="/logo1.png" alt="Munim" className="w-8 h-8 rounded-xl object-contain" />
             <span className="font-bold text-white text-lg">Munim</span>
           </div>
           <Link href="/login"
