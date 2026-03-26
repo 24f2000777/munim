@@ -47,7 +47,7 @@ export function Sidebar() {
     <aside className="hidden md:flex flex-col w-[240px] min-h-screen bg-[#0A0A0C] border-r border-white/[0.06] flex-shrink-0">
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 h-16 border-b border-white/[0.06]">
-        <img src="/logo1.png" alt="Munim" className="w-8 h-8 rounded-xl object-contain" />
+        <img src="/logo1.png" alt="Munim" className="w-8 h-8 rounded-full object-cover bg-[#1a2e26]" />
         <div>
           <span className="text-white font-bold text-lg tracking-tight">Munim</span>
           <span className="block text-[10px] text-white/30 -mt-0.5 font-medium">AI Business Intelligence</span>
